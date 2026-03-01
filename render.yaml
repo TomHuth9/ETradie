@@ -8,8 +8,7 @@ services:
     rootDir: backend
     buildCommand: npm install && npx prisma generate
     startCommand: npm start
-    # Runs on every deploy: migrations + seed (seed only inserts if DB has no users)
-    releaseCommand: npx prisma migrate deploy && npx prisma db seed
+    # Set Release Command in Render dashboard: npx prisma migrate deploy && npx prisma db seed
     envVars:
       - key: NODE_ENV
         value: production
