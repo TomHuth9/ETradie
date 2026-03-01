@@ -22,8 +22,8 @@ Deploy the backend (API + Socket.IO), frontend (static React app), and PostgreSQ
    - `JWT_SECRET` = (generate a long random string, e.g. `openssl rand -hex 32`)
    - `CLIENT_URL` = leave empty for now; set after the frontend is deployed (e.g. `https://etradie-web.onrender.com`)
    - `GEOCODE_USER_AGENT` = `ETradie/1.0 (https://yourapp.com; production)` (optional)
-4. **Advanced** → **Release Command:** `npx prisma migrate deploy && npx prisma db seed`  
-   This runs on every deploy: migrations apply table changes, and the seed only adds demo users/jobs when the database is empty (no Shell needed).
+4. **Advanced** → **Pre Deploy Command:** `npx prisma migrate deploy && npx prisma db seed`  
+   This runs before every deploy: migrations apply table changes, and the seed only adds demo users/jobs when the database is empty (no Shell needed).
 5. Create Web Service. Wait for the first deploy. Note the URL (e.g. `https://etradie-api.onrender.com`).
 
 ## 3. Deploy the frontend (static site)
@@ -52,9 +52,9 @@ Instead of creating services by hand, you can use the repo’s `render.yaml`:
 2. Render will create the two services from the YAML. You still must:
    - Create a PostgreSQL instance and set `DATABASE_URL` on the API service.
    - Set `JWT_SECRET`, `CLIENT_URL`, `VITE_API_URL`, and `VITE_SOCKET_URL` as above.
-   - The blueprint sets **Release Command** so migrations and seed run on deploy (no Shell needed).
+   - Set **Pre Deploy Command** in the dashboard so migrations and seed run on deploy (no Shell needed).
 
-**If your backend was created without a Release Command:** In the backend service go to **Settings** → **Build & Deploy** → **Release Command** and set it to `npx prisma migrate deploy && npx prisma db seed`, then trigger a **Manual Deploy**. That will create the tables and seed demo data.
+**If your backend was created without a Pre Deploy Command:** In the backend service go to **Settings** → **Advanced** → **Pre Deploy Command** and set it to `npx prisma migrate deploy && npx prisma db seed`, then trigger a **Manual Deploy**. That will create the tables and seed demo data.
 
 ## Notes
 

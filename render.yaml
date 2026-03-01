@@ -8,7 +8,7 @@ services:
     rootDir: backend
     buildCommand: npm install && npx prisma generate
     startCommand: npm start
-    # Set Release Command in Render dashboard: npx prisma migrate deploy && npx prisma db seed
+    # Set Pre Deploy Command in Render dashboard: npx prisma migrate deploy && npx prisma db seed
     envVars:
       - key: NODE_ENV
         value: production
