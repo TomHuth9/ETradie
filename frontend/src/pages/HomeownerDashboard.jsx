@@ -192,20 +192,26 @@ export default function HomeownerDashboard() {
         )}
         {!myJobsLoading && !myJobsError && myJobs.length > 0 && (
           <div className="job-list">
-            {myJobs.map((job) => (
-              <Link key={job.id} to={`/jobs/${job.id}`} className="card-link">
-                <div className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                    <strong className="card-title">{job.title}</strong>
-                    <span className={`badge ${getStatusBadgeClass(job.status)}`}>
-                      {job.status}
-                    </span>
+            {myJobs.map((job) => {
+              const acceptedBy = job.responses?.[0]?.tradesperson?.name;
+              return (
+                <Link key={job.id} to={`/jobs/${job.id}`} className="card-link">
+                  <div className="card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                      <strong className="card-title">{job.title}</strong>
+                      <span className={`badge ${getStatusBadgeClass(job.status)}`}>
+                        {job.status}
+                      </span>
+                    </div>
+                    <div className="card-meta">{job.locationText}</div>
+                    <div className="card-meta">
+                      {formatJobDate(job.createdAt)}
+                      {acceptedBy && <> · Accepted by <strong>{acceptedBy}</strong></>}
+                    </div>
                   </div>
-                  <div className="card-meta">{job.locationText}</div>
-                  <div className="card-meta">{formatJobDate(job.createdAt)}</div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>

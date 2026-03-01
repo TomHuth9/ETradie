@@ -13,8 +13,20 @@ export default function JobDetail() {
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
   const [responding, setResponding] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  async function loadJob() {
+    setError('');
+    try {
+      const jobRes = await api.get(`/jobs/${id}`);
+      setJob(jobRes.data);
+    } catch (err) {
+      setError(err.response?.status === 404 ? 'Job not found.' : err.response?.data?.message || 'Could not load job.');
+    }
+  }
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
       setError('');
@@ -23,16 +35,21 @@ export default function JobDetail() {
           api.get(`/jobs/${id}`),
           api.get('/trades/categories').catch(() => ({ data: [] })),
         ]);
-        setJob(jobRes.data);
-        setCategories(catRes.data);
+        if (!cancelled) {
+          setJob(jobRes.data);
+          setCategories(catRes.data);
+        }
       } catch (err) {
-        setError(err.response?.status === 404 ? 'Job not found.' : err.response?.data?.message || 'Could not load job.');
+        if (!cancelled) {
+          setError(err.response?.status === 404 ? 'Job not found.' : err.response?.data?.message || 'Could not load job.');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
+    return () => { cancelled = true; };
   }, [id]);
 
   const categoryLabel = job && categories.length
@@ -50,6 +67,34 @@ export default function JobDetail() {
       setError(err.response?.data?.message || 'Failed to send response.');
     } finally {
       setResponding(false);
+    }
+  }
+
+  async function handleCancel() {
+    if (!job) return;
+    setActionLoading(true);
+    setError('');
+    try {
+      await api.post(`/jobs/${job.id}/cancel`);
+      await loadJob();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to cancel job.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleComplete() {
+    if (!job) return;
+    setActionLoading(true);
+    setError('');
+    try {
+      await api.post(`/jobs/${job.id}/complete`);
+      await loadJob();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to mark job complete.');
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -75,6 +120,9 @@ export default function JobDetail() {
   const isHomeowner = user?.role === 'HOMEOWNER';
   const isTradesperson = user?.role === 'TRADESPERSON';
   const canRespond = isTradesperson && job?.status === 'PENDING';
+  const acceptedTradesperson = job?.responses?.[0]?.tradesperson;
+  const canCancel = isHomeowner && (job?.status === 'PENDING' || job?.status === 'ACCEPTED');
+  const canComplete = (isHomeowner || (isTradesperson && acceptedTradesperson?.id === user?.id)) && job?.status === 'ACCEPTED';
 
   return (
     <div>
@@ -118,6 +166,12 @@ export default function JobDetail() {
           </div>
         )}
 
+        {acceptedTradesperson && (
+          <div className="card-meta" style={{ marginTop: '0.5rem' }}>
+            Accepted by <strong>{acceptedTradesperson.name}</strong>
+          </div>
+        )}
+
         {canRespond && (
           <div className="job-card-actions" style={{ marginTop: '1.5rem' }}>
             <button
@@ -131,11 +185,40 @@ export default function JobDetail() {
             <button
               type="button"
               className="btn btn-danger"
-              onClick={() => handleRespond('declined')}
+              onClick={() => {
+                if (window.confirm('Are you sure you want to decline this job?')) {
+                  handleRespond('declined');
+                }
+              }}
               disabled={responding}
             >
               Decline
             </button>
+          </div>
+        )}
+
+        {(canCancel || canComplete) && (
+          <div className="job-card-actions" style={{ marginTop: '1rem' }}>
+            {canCancel && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleCancel}
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Cancelling…' : 'Cancel job'}
+              </button>
+            )}
+            {canComplete && (
+              <button
+                type="button"
+                className="btn btn-accent"
+                onClick={handleComplete}
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Updating…' : 'Mark complete'}
+              </button>
+            )}
           </div>
         )}
       </div>

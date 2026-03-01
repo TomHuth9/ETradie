@@ -1,37 +1,38 @@
 const axios = require('axios');
 
-const OPENCAGE_API_KEY = process.env.OPENCAGE_API_KEY;
-
-// Lightweight helper around the OpenCage geocoding API.
-// We keep this in a single place so it's easy to mock or swap later.
+// Nominatim (OpenStreetMap) geocoding — free, no API key required.
+// Usage policy: https://operations.osmfoundation.org/policies/nominatim/
+// We send a User-Agent and keep request volume low (e.g. on registration and job post).
 async function geocodeToLatLng(query) {
-  if (!OPENCAGE_API_KEY) {
-    throw new Error('OPENCAGE_API_KEY is not set in environment variables');
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    throw new Error('Geocoding requires a non-empty address or place name');
   }
 
-  const url = 'https://api.opencagedata.com/geocode/v1/json';
+  const url = 'https://nominatim.openstreetmap.org/search';
 
   const response = await axios.get(url, {
     params: {
-      q: query,
-      key: OPENCAGE_API_KEY,
+      q: query.trim(),
+      format: 'json',
       limit: 1,
+    },
+    headers: {
+      'User-Agent': process.env.GEOCODE_USER_AGENT || 'ETradie/1.0 (local development)',
     },
   });
 
-  const result = response.data.results[0];
+  const result = response.data[0];
 
-  if (!result || !result.geometry) {
+  if (!result || result.lat == null || result.lon == null) {
     throw new Error('Unable to geocode location');
   }
 
   return {
-    lat: result.geometry.lat,
-    lng: result.geometry.lng,
+    lat: Number(result.lat),
+    lng: Number(result.lon),
   };
 }
 
 module.exports = {
   geocodeToLatLng,
 };
-

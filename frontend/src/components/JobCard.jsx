@@ -40,7 +40,11 @@ export default function JobCard({
         <button
           type="button"
           className="btn btn-danger"
-          onClick={onDecline}
+          onClick={() => {
+            if (window.confirm('Are you sure you want to decline this job?')) {
+              onDecline();
+            }
+          }}
           disabled={accepting || declining}
         >
           {declining ? 'Declining...' : 'Decline'}

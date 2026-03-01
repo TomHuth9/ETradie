@@ -16,6 +16,7 @@ export default function TradespersonDashboard() {
   const [historyJobs, setHistoryJobs] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [nearbyLoading, setNearbyLoading] = useState(true);
 
   const categoryMap = useMemo(
     () =>
@@ -62,6 +63,27 @@ export default function TradespersonDashboard() {
     }
 
     loadHistory();
+  }, []);
+
+  // Load nearby pending jobs on mount so tradesperson sees jobs even if they missed the socket broadcast.
+  useEffect(() => {
+    async function loadNearby() {
+      setNearbyLoading(true);
+      try {
+        const res = await api.get('/jobs/nearby');
+        setJobs((prev) => {
+          const byId = new Map(prev.map((j) => [j.id, j]));
+          res.data.forEach((j) => byId.set(j.id, j));
+          return [...byId.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        });
+      } catch (err) {
+        console.error('Failed to load nearby jobs', err);
+      } finally {
+        setNearbyLoading(false);
+      }
+    }
+
+    loadNearby();
   }, []);
 
   useEffect(() => {
@@ -137,7 +159,10 @@ export default function TradespersonDashboard() {
             </select>
           )}
         </div>
-        {filteredJobs.length === 0 && (
+        {nearbyLoading && jobs.length === 0 && (
+          <p className="page-subtitle">Loading nearby jobs…</p>
+        )}
+        {!nearbyLoading && filteredJobs.length === 0 && (
           <div className="empty-state">
             {jobs.length === 0
               ? 'No new jobs yet. Keep this page open to receive real-time requests.'
