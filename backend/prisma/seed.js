@@ -1,5 +1,6 @@
 // Simple seed script to create a few demo users and jobs.
-// This makes it easier to test the app without manually registering accounts.
+// Safe to run on every deploy: only seeds when the database has no users (e.g. first deploy).
+// This avoids needing a Shell on Render — use Release Command: npx prisma migrate deploy && npx prisma db seed
 
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
@@ -9,12 +10,11 @@ const prisma = new PrismaClient();
 const SEED_PASSWORD = 'Password123!';
 
 async function main() {
-  await prisma.message.deleteMany();
-  await prisma.review.deleteMany();
-  await prisma.jobResponse.deleteMany();
-  await prisma.job.deleteMany();
-  await prisma.tradespersonCategory.deleteMany();
-  await prisma.user.deleteMany();
+  const userCount = await prisma.user.count();
+  if (userCount > 0) {
+    console.log('Seed skipped: database already has users.');
+    return;
+  }
 
   const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10);
 

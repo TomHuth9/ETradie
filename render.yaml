@@ -1,0 +1,35 @@
+# Render Blueprint for ETradie
+# See DEPLOY.md for step-by-step. After creating PostgreSQL, set DATABASE_URL and CLIENT_URL in the API service.
+
+services:
+  - type: web
+    name: etradie-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    # Runs on every deploy: migrations + seed (seed only inserts if DB has no users)
+    releaseCommand: npx prisma migrate deploy && npx prisma db seed
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GEOCODE_USER_AGENT
+        sync: false
+
+  - type: web
+    name: etradie-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SOCKET_URL
+        sync: false

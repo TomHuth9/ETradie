@@ -97,6 +97,10 @@ npx prisma migrate dev
 
 Commit the new migration files under `prisma/migrations/`.
 
+## Deploying on Render
+
+See **[DEPLOY.md](./DEPLOY.md)** for step-by-step instructions to deploy the backend, frontend, and PostgreSQL on [Render](https://render.com). The repo includes a `render.yaml` blueprint you can use.
+
 ## License
 
 MIT
