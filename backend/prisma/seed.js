@@ -9,8 +9,11 @@ const prisma = new PrismaClient();
 const SEED_PASSWORD = 'Password123!';
 
 async function main() {
+  await prisma.message.deleteMany();
+  await prisma.review.deleteMany();
   await prisma.jobResponse.deleteMany();
   await prisma.job.deleteMany();
+  await prisma.tradespersonCategory.deleteMany();
   await prisma.user.deleteMany();
 
   const passwordHash = await bcrypt.hash(SEED_PASSWORD, 10);
@@ -41,7 +44,15 @@ async function main() {
       townOrCity: 'Glasgow',
       lat: 55.8642,
       lng: -4.2518,
+      availability: true,
     },
+  });
+
+  await prisma.tradespersonCategory.createMany({
+    data: [
+      { userId: tradesperson.id, category: 'PLUMBING' },
+      { userId: tradesperson.id, category: 'HEATING_BOILERS' },
+    ],
   });
 
   // Pending job near both users.

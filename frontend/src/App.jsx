@@ -2,9 +2,13 @@ import React from 'react';
 import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import Register from './pages/Register';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import HomeownerDashboard from './pages/HomeownerDashboard';
 import TradespersonDashboard from './pages/TradespersonDashboard';
 import JobDetail from './pages/JobDetail';
+import Profile from './pages/Profile';
+import TradespersonProfile from './pages/TradespersonProfile';
 import Footer from './components/Footer';
 import { useAuth } from './contexts/AuthContext';
 
@@ -47,6 +51,7 @@ function Layout({ children }) {
               {user.role === 'TRADESPERSON' && (
                 <Link to="/tradesperson-dashboard" className="nav-link">Jobs</Link>
               )}
+              <Link to="/profile" className="nav-link">Profile</Link>
               <button type="button" className="btn btn-secondary" onClick={logout}>
                 Logout
               </button>
@@ -91,6 +96,10 @@ export default function App() {
         />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/profile/:id" element={<ProtectedRoute><TradespersonProfile /></ProtectedRoute>} />
         <Route
           path="/jobs/:id"
           element={

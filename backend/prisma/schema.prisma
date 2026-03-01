@@ -40,6 +40,7 @@ enum JobStatus {
   ACCEPTED
   COMPLETED
   CANCELLED
+  CLOSED
 }
 
 enum JobResponseStatus {
@@ -66,8 +67,25 @@ model User {
 
   createdAt    DateTime  @default(now())
 
-  jobs         Job[]             @relation("HomeownerJobs")
-  jobResponses JobResponse[]
+  passwordResetToken       String?   @unique
+  passwordResetExpiresAt   DateTime?
+  availability             Boolean?  // tradesperson: true = available
+
+  jobs           Job[]             @relation("HomeownerJobs")
+  tradespersonCategories TradespersonCategory[]
+  jobResponses   JobResponse[]
+  messagesSent   Message[]
+  reviewsGiven   Review[]          @relation("Reviewer")
+  reviewsReceived Review[]         @relation("Reviewee")
+}
+
+model TradespersonCategory {
+  id        Int           @id @default(autoincrement())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  category  TradeCategory
+
+  @@unique([userId, category])
 }
 
 model Job {
@@ -88,6 +106,8 @@ model Job {
   homeownerId Int
 
   responses   JobResponse[]
+  messages    Message[]
+  reviews     Review[]
 }
 
 model JobResponse {
@@ -102,5 +122,30 @@ model JobResponse {
   respondedAt   DateTime          @default(now())
 
   @@unique([jobId, tradespersonId])
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId     Int
+  sender    User     @relation(fields: [senderId], references: [id])
+  senderId  Int
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id         Int      @id @default(autoincrement())
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId      Int
+  reviewer   User     @relation("Reviewer", fields: [reviewerId], references: [id])
+  reviewerId Int
+  reviewee   User     @relation("Reviewee", fields: [revieweeId], references: [id])
+  revieweeId Int
+  rating     Int      // 1-5
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@unique([jobId, reviewerId])
 }
 

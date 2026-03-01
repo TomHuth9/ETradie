@@ -30,5 +30,6 @@ export function getStatusBadgeClass(status) {
   if (s === 'accepted') return 'badge-accepted';
   if (s === 'completed') return 'badge-completed';
   if (s === 'cancelled') return 'badge-cancelled';
+  if (s === 'closed') return 'badge-cancelled';
   return 'badge-pending';
 }

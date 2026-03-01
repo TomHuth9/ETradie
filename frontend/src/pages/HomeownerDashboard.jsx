@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { formatJobDate, getStatusBadgeClass } from '../utils/format';
@@ -39,13 +40,26 @@ export default function HomeownerDashboard() {
     loadCategories();
   }, []);
 
+  const [myJobsPage, setMyJobsPage] = useState(1);
+  const [myJobsTotal, setMyJobsTotal] = useState(0);
+  const [myJobsFilterStatus, setMyJobsFilterStatus] = useState('');
+  const [myJobsFilterCategory, setMyJobsFilterCategory] = useState('');
+
   useEffect(() => {
     async function loadMyJobs() {
       setMyJobsLoading(true);
       setMyJobsError('');
       try {
-        const res = await api.get('/jobs/my');
-        setMyJobs(res.data);
+        const params = new URLSearchParams();
+        params.set('page', String(myJobsPage));
+        params.set('limit', '10');
+        if (myJobsFilterStatus) params.set('status', myJobsFilterStatus);
+        if (myJobsFilterCategory) params.set('category', myJobsFilterCategory);
+        const res = await api.get(`/jobs/my?${params.toString()}`);
+        const data = res.data;
+        const list = Array.isArray(data.jobs) ? data.jobs : (Array.isArray(data) ? data : []);
+        setMyJobs((prev) => (myJobsPage === 1 ? list : [...prev, ...list]));
+        setMyJobsTotal(typeof data.total === 'number' ? data.total : list.length);
       } catch (err) {
         setMyJobsError(
           err.response?.data?.message || 'Could not load your jobs right now.'
@@ -56,7 +70,7 @@ export default function HomeownerDashboard() {
     }
 
     loadMyJobs();
-  }, []);
+  }, [myJobsPage, myJobsFilterStatus, myJobsFilterCategory]);
 
   useEffect(() => {
     if (user?.address) {
@@ -79,6 +93,7 @@ export default function HomeownerDashboard() {
     setError('');
     try {
       await api.post('/jobs', form);
+      toast.success('Job posted and broadcast to nearby tradespeople.');
       setMessage('Job posted and broadcast to nearby tradespeople.');
       setForm((prev) => ({
         ...prev,
@@ -86,8 +101,10 @@ export default function HomeownerDashboard() {
         description: '',
       }));
       try {
-        const res = await api.get('/jobs/my');
-        setMyJobs(res.data);
+        const res = await api.get('/jobs/my?page=1&limit=10');
+        const data = res.data;
+        setMyJobs(Array.isArray(data.jobs) ? data.jobs : (Array.isArray(data) ? data : []));
+        if (typeof data.total === 'number') setMyJobsTotal(data.total);
       } catch {
         // ignore
       }
@@ -178,7 +195,33 @@ export default function HomeownerDashboard() {
       </div>
 
       <section className="section">
-        <h3 className="section-title">Your recent jobs</h3>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+          <h3 className="section-title" style={{ marginBottom: 0 }}>Your jobs</h3>
+          <select
+            className="form-select"
+            value={myJobsFilterStatus}
+            onChange={(e) => { setMyJobsFilterStatus(e.target.value); setMyJobsPage(1); }}
+            style={{ width: 'auto', minWidth: '140px' }}
+          >
+            <option value="">All statuses</option>
+            <option value="PENDING">Pending</option>
+            <option value="ACCEPTED">Accepted</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="CANCELLED">Cancelled</option>
+            <option value="CLOSED">Closed</option>
+          </select>
+          <select
+            className="form-select"
+            value={myJobsFilterCategory}
+            onChange={(e) => { setMyJobsFilterCategory(e.target.value); setMyJobsPage(1); }}
+            style={{ width: 'auto', minWidth: '180px' }}
+          >
+            <option value="">All categories</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>{cat.label}</option>
+            ))}
+          </select>
+        </div>
         {myJobsLoading && (
           <p className="page-subtitle">Loading your jobs…</p>
         )}
@@ -191,28 +234,54 @@ export default function HomeownerDashboard() {
           </div>
         )}
         {!myJobsLoading && !myJobsError && myJobs.length > 0 && (
-          <div className="job-list">
-            {myJobs.map((job) => {
-              const acceptedBy = job.responses?.[0]?.tradesperson?.name;
-              return (
-                <Link key={job.id} to={`/jobs/${job.id}`} className="card-link">
-                  <div className="card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                      <strong className="card-title">{job.title}</strong>
-                      <span className={`badge ${getStatusBadgeClass(job.status)}`}>
-                        {job.status}
-                      </span>
+          <>
+            <div className="job-list">
+              {myJobs.map((job) => {
+                const acceptedBy = job.responses?.[0]?.tradesperson;
+                const name = acceptedBy?.name;
+                const rating = acceptedBy?.averageRating;
+                const reviewCount = acceptedBy?.reviewCount;
+                return (
+                  <Link key={job.id} to={`/jobs/${job.id}`} className="card-link">
+                    <div className="card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                        <strong className="card-title">{job.title}</strong>
+                        <span className={`badge ${getStatusBadgeClass(job.status)}`}>
+                          {job.status}
+                        </span>
+                      </div>
+                      <div className="card-meta">{job.locationText}</div>
+                      <div className="card-meta">
+                        {formatJobDate(job.createdAt)}
+                        {name && (
+                          <>
+                            {' · Accepted by '}
+                            <Link to={`/profile/${acceptedBy.id}`} onClick={(e) => e.stopPropagation()} className="card-meta-link">
+                              <strong>{name}</strong>
+                              {rating != null && (
+                                <span> ★ {rating}{reviewCount != null ? ` (${reviewCount})` : ''}</span>
+                              )}
+                            </Link>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="card-meta">{job.locationText}</div>
-                    <div className="card-meta">
-                      {formatJobDate(job.createdAt)}
-                      {acceptedBy && <> · Accepted by <strong>{acceptedBy}</strong></>}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+                  </Link>
+                );
+              })}
+            </div>
+            {myJobsTotal > myJobs.length && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ marginTop: '1rem' }}
+                onClick={() => setMyJobsPage((p) => p + 1)}
+                disabled={myJobsLoading}
+              >
+                {myJobsLoading ? 'Loading…' : 'Load more'}
+              </button>
+            )}
+          </>
         )}
       </section>
     </div>

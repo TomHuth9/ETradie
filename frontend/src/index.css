@@ -302,6 +302,14 @@ a:hover {
   margin-bottom: var(--space-sm);
 }
 
+.card-meta-link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.card-meta-link:hover {
+  text-decoration: underline;
+}
+
 /* Status badges */
 .badge {
   display: inline-block;

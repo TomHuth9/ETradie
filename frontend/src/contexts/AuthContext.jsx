@@ -49,9 +49,9 @@ export function AuthProvider({ children }) {
     }
   }, [user, token]);
 
-  // Manage Socket.IO lifecycle: connect on login (for tradespeople) and disconnect on logout.
+  // Manage Socket.IO lifecycle: connect when logged in (for real-time jobs and messages).
   useEffect(() => {
-    if (!token || !user || user.role !== 'TRADESPERSON') {
+    if (!token || !user) {
       if (socket) {
         socket.disconnect();
         setSocket(null);

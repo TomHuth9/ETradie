@@ -51,7 +51,8 @@ export default function TradespersonDashboard() {
       setHistoryError('');
       try {
         const res = await api.get('/jobs/my');
-        setHistoryJobs(res.data);
+        const data = res.data;
+        setHistoryJobs(Array.isArray(data.jobs) ? data.jobs : (Array.isArray(data) ? data : []));
       } catch (err) {
         setHistoryError(
           err.response?.data?.message ||
@@ -112,7 +113,8 @@ export default function TradespersonDashboard() {
       setJobs((prev) => prev.filter((j) => j.id !== jobId));
       try {
         const res = await api.get('/jobs/my');
-        setHistoryJobs(res.data);
+        const data = res.data;
+        setHistoryJobs(Array.isArray(data.jobs) ? data.jobs : (Array.isArray(data) ? data : []));
       } catch {
         // ignore
       }
@@ -180,8 +182,8 @@ export default function TradespersonDashboard() {
                 }}
                 accepting={busyJobId === job.id}
                 declining={busyJobId === job.id}
-                onAccept={() => respond(job.id, 'accepted')}
-                onDecline={() => respond(job.id, 'declined')}
+                onAccept={() => respond(job.id, 'ACCEPTED')}
+                onDecline={() => respond(job.id, 'DECLINED')}
                 isNew
               />
             ))}

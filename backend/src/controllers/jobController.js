@@ -89,6 +89,22 @@ async function getJobById(req, res, next) {
       return res.status(404).json({ message: 'Job not found' });
     }
 
+    const acceptedTradespersonId = job.responses?.[0]?.tradesperson?.id;
+    if (acceptedTradespersonId && job.responses?.[0]?.tradesperson) {
+      try {
+        const agg = await prisma.review.aggregate({
+          where: { revieweeId: acceptedTradespersonId },
+          _avg: { rating: true },
+          _count: { rating: true },
+        });
+        job.responses[0].tradesperson.averageRating =
+          agg._avg.rating != null ? Math.round(agg._avg.rating * 10) / 10 : null;
+        job.responses[0].tradesperson.reviewCount = agg._count.rating;
+      } catch (_) {
+        // Review table may not exist yet; leave rating fields off
+      }
+    }
+
     res.json(job);
   } catch (err) {
     next(err);
@@ -162,9 +178,11 @@ async function getNearbyJobs(req, res, next) {
       return res.status(403).json({ message: 'Only tradespeople can fetch nearby jobs' });
     }
 
+    const categoryFilter = req.query.category; // optional: filter by trade category
+
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { lat: true, lng: true },
+      include: { tradespersonCategories: { select: { category: true } } },
     });
 
     if (user?.lat == null || user?.lng == null) {
@@ -181,11 +199,20 @@ async function getNearbyJobs(req, res, next) {
       select: { jobId: true },
     }).then((rows) => new Set(rows.map((r) => r.jobId)));
 
+    const myCategories = (user.tradespersonCategories || []).map((tc) => tc.category);
+    const filterByCategory = categoryFilter
+      ? [categoryFilter]
+      : myCategories.length > 0
+        ? myCategories
+        : null;
+
     const nearby = pendingJobs.filter((job) => {
       if (myResponseJobIds.has(job.id)) return false;
       if (job.lat == null || job.lng == null) return false;
       const distance = haversineDistanceKm(user.lat, user.lng, job.lat, job.lng);
-      return distance <= NEARBY_RADIUS_KM;
+      if (distance > NEARBY_RADIUS_KM) return false;
+      if (filterByCategory && !filterByCategory.includes(job.category)) return false;
+      return true;
     });
 
     const payload = nearby.map((job) => ({
@@ -203,32 +230,46 @@ async function getNearbyJobs(req, res, next) {
   }
 }
 
-// GET /jobs/my
-// Homeowner: jobs they created.
-// Tradesperson: jobs they have responded to.
+// GET /jobs/my — optional query: page, limit, status, category
 async function getMyJobs(req, res, next) {
   try {
-    if (req.user.role === 'HOMEOWNER') {
-      const jobs = await prisma.job.findMany({
-        where: { homeownerId: req.user.id },
-        orderBy: { createdAt: 'desc' },
-        include: acceptedTradespersonInclude,
-      });
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+    const status = req.query.status; // PENDING, ACCEPTED, COMPLETED, CANCELLED, CLOSED
+    const category = req.query.category; // TradeCategory enum
 
-      return res.json(jobs);
+    if (req.user.role === 'HOMEOWNER') {
+      const where = { homeownerId: req.user.id };
+      if (status) where.status = status;
+      if (category) where.category = category;
+
+      const [jobs, total] = await Promise.all([
+        prisma.job.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+          include: acceptedTradespersonInclude,
+        }),
+        prisma.job.count({ where }),
+      ]);
+
+      return res.json({ jobs, total, page, limit });
     }
 
     if (req.user.role === 'TRADESPERSON') {
       const responses = await prisma.jobResponse.findMany({
         where: { tradespersonId: req.user.id },
-        include: {
-          job: true,
-        },
+        include: { job: { include: acceptedTradespersonInclude } },
         orderBy: { respondedAt: 'desc' },
       });
-
-      const jobs = responses.map((r) => r.job);
-      return res.json(jobs);
+      let jobs = responses.map((r) => r.job);
+      if (status) jobs = jobs.filter((j) => j.status === status);
+      if (category) jobs = jobs.filter((j) => j.category === category);
+      const total = jobs.length;
+      jobs = jobs.slice(skip, skip + limit);
+      return res.json({ jobs, total, page, limit });
     }
 
     return res.status(400).json({ message: 'Unknown user role' });
@@ -308,6 +349,35 @@ async function completeJob(req, res, next) {
   }
 }
 
+// POST /jobs/:id/close — homeowner closes job (no longer needed); only PENDING.
+async function closeJob(req, res, next) {
+  try {
+    if (req.user.role !== 'HOMEOWNER') {
+      return res.status(403).json({ message: 'Only homeowners can close jobs' });
+    }
+
+    const id = Number(req.params.id);
+    const job = await prisma.job.findUnique({ where: { id } });
+
+    if (!job) return res.status(404).json({ message: 'Job not found' });
+    if (job.homeownerId !== req.user.id) {
+      return res.status(403).json({ message: 'You can only close your own jobs' });
+    }
+    if (job.status !== 'PENDING') {
+      return res.status(400).json({ message: 'Only pending jobs can be closed' });
+    }
+
+    await prisma.job.update({
+      where: { id },
+      data: { status: 'CLOSED' },
+    });
+
+    res.json({ message: 'Job closed', status: 'CLOSED' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   createJob,
   getJobById,
@@ -316,5 +386,6 @@ module.exports = {
   getNearbyJobs,
   cancelJob,
   completeJob,
+  closeJob,
 };
 

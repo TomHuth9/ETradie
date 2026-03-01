@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
@@ -73,6 +74,9 @@ export default function Login() {
           {loading ? 'Logging in...' : 'Log in'}
         </button>
       </form>
+      <p style={{ marginTop: '1rem', textAlign: 'center' }}>
+        <Link to="/forgot-password">Forgot password?</Link>
+      </p>
     </div>
   );
 }
