@@ -123,11 +123,12 @@ async function respondToJob(req, res, next) {
 
     const id = Number(req.params.id);
     const { response } = req.body;
+    const r = typeof response === 'string' ? response.toUpperCase() : '';
 
-    if (response !== 'accepted' && response !== 'declined') {
+    if (r !== 'ACCEPTED' && r !== 'DECLINED') {
       return res
         .status(400)
-        .json({ message: 'response must be accepted or declined' });
+        .json({ message: 'response must be ACCEPTED or DECLINED' });
     }
 
     const job = await prisma.job.findUnique({ where: { id } });
@@ -135,8 +136,7 @@ async function respondToJob(req, res, next) {
       return res.status(404).json({ message: 'Job not found' });
     }
 
-    const prismaResponse =
-      response === 'accepted' ? 'ACCEPTED' : 'DECLINED';
+    const prismaResponse = r;
 
     const jobResponse = await prisma.jobResponse.upsert({
       where: {

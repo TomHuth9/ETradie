@@ -6,6 +6,9 @@ const { geocodeToLatLng } = require('../services/geocodingService');
 const { validatePassword } = require('./authController');
 
 function serializeUser(user) {
+  const categories = Array.isArray(user.tradespersonCategories)
+    ? user.tradespersonCategories.map((tc) => tc.category)
+    : [];
   return {
     id: user.id,
     name: user.name,
@@ -16,7 +19,7 @@ function serializeUser(user) {
     lat: user.lat,
     lng: user.lng,
     availability: user.availability,
-    tradespersonCategories: user.tradespersonCategories?.map((tc) => tc.category) ?? [],
+    categories,
   };
 }
 
@@ -25,11 +28,23 @@ async function getMe(req, res, next) {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      include: {
-        tradespersonCategories: { select: { category: true } },
-      },
     });
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.role === 'TRADESPERSON') {
+      try {
+        const categories = await prisma.tradespersonCategory.findMany({
+          where: { userId: user.id },
+          select: { category: true },
+        });
+        user.tradespersonCategories = categories;
+      } catch (_) {
+        user.tradespersonCategories = [];
+      }
+    } else {
+      user.tradespersonCategories = [];
+    }
+
     const out = serializeUser(user);
     res.json(out);
   } catch (err) {

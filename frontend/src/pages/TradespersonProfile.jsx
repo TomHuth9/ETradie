@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function TradespersonProfile() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [categoriesList, setCategoriesList] = useState([]);
 
   useEffect(() => {
+    if (!id) return;
     async function load() {
       try {
         const [profileRes, catRes] = await Promise.all([
@@ -27,6 +29,13 @@ export default function TradespersonProfile() {
     }
     load();
   }, [id]);
+
+  if (!id) return null;
+
+  if (user?.id === Number(id)) {
+    navigate('/profile', { replace: true });
+    return <div className="page-header"><p>Redirecting to your profile…</p></div>;
+  }
 
   if (loading) return <div className="page-header"><p>Loading…</p></div>;
   if (!profile) return <div className="page-header"><p>Profile not found.</p></div>;

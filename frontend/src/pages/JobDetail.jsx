@@ -280,10 +280,13 @@ export default function JobDetail() {
 
         {acceptedTradesperson && (
           <div className="card-meta" style={{ marginTop: '0.5rem' }}>
-            Accepted by <strong>{acceptedTradesperson.name}</strong>
-            {acceptedTradesperson.averageRating != null && (
-              <> · ★ {acceptedTradesperson.averageRating}{acceptedTradesperson.reviewCount > 0 && ` (${acceptedTradesperson.reviewCount} review${acceptedTradesperson.reviewCount === 1 ? '' : 's'})`}</>
-            )}
+            Accepted by{' '}
+            <Link to={`/profile/${acceptedTradesperson.id}`} className="card-meta-link">
+              <strong>{acceptedTradesperson.name}</strong>
+              {acceptedTradesperson.averageRating != null && (
+                <> · ★ {acceptedTradesperson.averageRating}{acceptedTradesperson.reviewCount > 0 ? ` (${acceptedTradesperson.reviewCount} review${acceptedTradesperson.reviewCount === 1 ? '' : 's'})` : ''}</>
+              )}
+            </Link>
           </div>
         )}
 

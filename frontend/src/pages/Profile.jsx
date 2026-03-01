@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 export default function Profile() {
   const { user } = useAuth();
+  const location = useLocation();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -14,25 +16,32 @@ export default function Profile() {
   const [passwordSaving, setPasswordSaving] = useState(false);
 
   useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    setLoading(true);
     async function load() {
       try {
         const res = await api.get('/auth/me');
+        if (cancelled) return;
         setProfile(res.data);
         setForm({
           name: res.data.name || '',
           address: res.data.address || '',
           townOrCity: res.data.townOrCity || '',
           availability: res.data.availability !== false,
-          categories: res.data.categories || [],
+          categories: res.data.categories ?? res.data.tradespersonCategories ?? [],
         });
       } catch (err) {
-        toast.error(err.response?.data?.message || 'Failed to load profile');
+        if (!cancelled) {
+          toast.error(err.response?.data?.message || 'Failed to load profile');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
-  }, []);
+    return () => { cancelled = true; };
+  }, [user?.id, location.pathname]);
 
   useEffect(() => {
     api.get('/trades/categories').then((res) => setCategoriesList(res.data || [])).catch(() => {});
