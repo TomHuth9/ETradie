@@ -137,3 +137,13 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Local env (backend and frontend .env hold secrets; only .env.example is committed)
+backend/.env
+frontend/.env

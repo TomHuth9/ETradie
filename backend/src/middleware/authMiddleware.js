@@ -1,0 +1,28 @@
+const jwt = require('jsonwebtoken');
+
+// Simple JWT authentication middleware.
+// Expects an Authorization header of the form "Bearer <token>".
+module.exports = function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Authorization header missing or malformed' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Attach basic user info from the token to the request.
+    req.user = {
+      id: payload.userId,
+      role: payload.role,
+    };
+
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
+

@@ -1,0 +1,106 @@
+// Prisma schema for the ETradie backend.
+// This defines Users (homeowners and tradespeople), Jobs, and JobResponses.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Trade categories are modelled as a Postgres enum.
+// This makes them easy to reuse and extend.
+enum TradeCategory {
+  PLUMBING
+  ELECTRICAL
+  PAINTING_DECORATING
+  CARPENTRY
+  ROOFING
+  PLASTERING
+  TILING
+  FLOORING
+  HEATING_BOILERS
+  GARDENING_LANDSCAPING
+  CLEANING
+  REMOVALS
+  BUILDING_CONSTRUCTION
+  LOCKSMITH
+  OTHER_NOT_SURE
+}
+
+enum UserRole {
+  HOMEOWNER
+  TRADESPERSON
+}
+
+enum JobStatus {
+  PENDING
+  ACCEPTED
+  COMPLETED
+  CANCELLED
+}
+
+enum JobResponseStatus {
+  ACCEPTED
+  DECLINED
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole
+
+  // Homeowners: full address string (including postcode).
+  address      String?   // only for homeowners
+
+  // Tradespeople: town or city name (e.g. "Glasgow").
+  townOrCity   String?   // only for tradespeople
+
+  // Geocoded coordinates derived from address or town/city.
+  lat          Float?
+  lng          Float?
+
+  createdAt    DateTime  @default(now())
+
+  jobs         Job[]             @relation("HomeownerJobs")
+  jobResponses JobResponse[]
+}
+
+model Job {
+  id          Int           @id @default(autoincrement())
+  title       String
+  description String
+  category    TradeCategory
+  status      JobStatus     @default(PENDING)
+
+  // Location is stored as the homeowner's address string plus its lat/lng.
+  locationText String
+  lat          Float
+  lng          Float
+
+  createdAt   DateTime      @default(now())
+
+  homeowner   User          @relation("HomeownerJobs", fields: [homeownerId], references: [id])
+  homeownerId Int
+
+  responses   JobResponse[]
+}
+
+model JobResponse {
+  id            Int               @id @default(autoincrement())
+  job           Job               @relation(fields: [jobId], references: [id])
+  jobId         Int
+
+  tradesperson  User              @relation(fields: [tradespersonId], references: [id])
+  tradespersonId Int
+
+  response      JobResponseStatus
+  respondedAt   DateTime          @default(now())
+
+  @@unique([jobId, tradespersonId])
+}
+
