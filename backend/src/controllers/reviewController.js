@@ -26,15 +26,14 @@ async function getProfile(req, res, next) {
       categories: (user.tradespersonCategories || []).map((tc) => tc.category),
     };
 
-    if (user.role === 'TRADESPERSON') {
-      const agg = await prisma.review.aggregate({
-        where: { revieweeId: userId },
-        _avg: { rating: true },
-        _count: { rating: true },
-      });
-      out.averageRating = agg._avg.rating != null ? Math.round(agg._avg.rating * 10) / 10 : null;
-      out.reviewCount = agg._count.rating;
-    }
+    // Both homeowners and tradespeople can have ratings (from completed jobs).
+    const agg = await prisma.review.aggregate({
+      where: { revieweeId: userId },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
+    out.averageRating = agg._avg.rating != null ? Math.round(agg._avg.rating * 10) / 10 : null;
+    out.reviewCount = agg._count.rating;
 
     res.json(out);
   } catch (err) {
@@ -152,6 +151,28 @@ async function listReviewsForJob(req, res, next) {
   }
 }
 
+// GET /users/:id/reviews — list reviews received by this user (for profile page).
+async function listReviewsForUser(req, res, next) {
+  try {
+    const userId = Number(req.params.id);
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const reviews = await prisma.review.findMany({
+      where: { revieweeId: userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        reviewer: { select: { id: true, name: true } },
+        job: { select: { id: true, title: true } },
+      },
+    });
+
+    res.json(reviews);
+  } catch (err) {
+    next(err);
+  }
+}
+
 // GET /users/:id/rating — public rating summary for a user (average + count).
 async function getRatingForUser(req, res, next) {
   try {
@@ -175,6 +196,7 @@ async function getRatingForUser(req, res, next) {
 module.exports = {
   submitReview,
   listReviewsForJob,
+  listReviewsForUser,
   getRatingForUser,
   getProfile,
 };
