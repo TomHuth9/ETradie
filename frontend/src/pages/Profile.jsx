@@ -3,6 +3,13 @@ import { useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import {
+  validateName,
+  validateAddress,
+  validateTownOrCity,
+  validatePassword,
+  getPasswordHint,
+} from '../utils/validation';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -14,6 +21,8 @@ export default function Profile() {
   const [categoriesList, setCategoriesList] = useState([]);
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [profileErrors, setProfileErrors] = useState({});
+  const [passwordErrors, setPasswordErrors] = useState({});
 
   useEffect(() => {
     if (!user) return;
@@ -50,6 +59,16 @@ export default function Profile() {
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    if (profileErrors[name]) setProfileErrors((prev) => ({ ...prev, [name]: null }));
+  }
+
+  function handleProfileBlur(e) {
+    const { name, value } = e.target;
+    let msg = null;
+    if (name === 'name') msg = validateName(value);
+    else if (name === 'address') msg = validateAddress(value, false);
+    else if (name === 'townOrCity') msg = validateTownOrCity(value, false);
+    setProfileErrors((prev) => (msg != null ? { ...prev, [name]: msg } : { ...prev, [name]: null }));
   }
 
   function handleCategoryToggle(catId) {
@@ -62,6 +81,12 @@ export default function Profile() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const errs = {};
+    const n = validateName(form.name); if (n) errs.name = n;
+    if (user?.role === 'HOMEOWNER') { const a = validateAddress(form.address, false); if (a) errs.address = a; }
+    if (user?.role === 'TRADESPERSON') { const t = validateTownOrCity(form.townOrCity, false); if (t) errs.townOrCity = t; }
+    setProfileErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setSaving(true);
     try {
       await api.patch('/auth/profile', {
@@ -85,8 +110,16 @@ export default function Profile() {
 
   async function handlePasswordSubmit(e) {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error('New passwords do not match');
+    setPasswordErrors({});
+    const curErr = !passwordForm.currentPassword?.trim() ? 'Current password is required' : null;
+    const newErr = validatePassword(passwordForm.newPassword);
+    const confErr = passwordForm.newPassword !== passwordForm.confirmPassword ? 'Passwords do not match' : null;
+    if (curErr || newErr || confErr) {
+      setPasswordErrors({
+        currentPassword: curErr || undefined,
+        newPassword: newErr || undefined,
+        confirmPassword: confErr || undefined,
+      });
       return;
     }
     setPasswordSaving(true);
@@ -124,11 +157,13 @@ export default function Profile() {
               id="name"
               name="name"
               type="text"
-              className="form-input"
+              className={`form-input ${profileErrors.name ? 'form-input-error' : ''}`}
               value={form.name}
               onChange={handleChange}
+              onBlur={handleProfileBlur}
               required
             />
+            {profileErrors.name && <span className="form-field-error">{profileErrors.name}</span>}
           </div>
           {user.role === 'HOMEOWNER' && (
             <div className="form-group">
@@ -137,10 +172,12 @@ export default function Profile() {
                 id="address"
                 name="address"
                 type="text"
-                className="form-input"
+                className={`form-input ${profileErrors.address ? 'form-input-error' : ''}`}
                 value={form.address}
                 onChange={handleChange}
+                onBlur={handleProfileBlur}
               />
+              {profileErrors.address && <span className="form-field-error">{profileErrors.address}</span>}
             </div>
           )}
           {user.role === 'TRADESPERSON' && (
@@ -151,10 +188,12 @@ export default function Profile() {
                   id="townOrCity"
                   name="townOrCity"
                   type="text"
-                  className="form-input"
+                  className={`form-input ${profileErrors.townOrCity ? 'form-input-error' : ''}`}
                   value={form.townOrCity}
                   onChange={handleChange}
+                  onBlur={handleProfileBlur}
                 />
+                {profileErrors.townOrCity && <span className="form-field-error">{profileErrors.townOrCity}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">
@@ -201,11 +240,12 @@ export default function Profile() {
               id="currentPassword"
               name="currentPassword"
               type="password"
-              className="form-input"
+              className={`form-input ${passwordErrors.currentPassword ? 'form-input-error' : ''}`}
               value={passwordForm.currentPassword}
-              onChange={(e) => setPasswordForm((p) => ({ ...p, currentPassword: e.target.value }))}
+              onChange={(e) => { setPasswordForm((p) => ({ ...p, currentPassword: e.target.value })); setPasswordErrors((prev) => ({ ...prev, currentPassword: null })); }}
               required
             />
+            {passwordErrors.currentPassword && <span className="form-field-error">{passwordErrors.currentPassword}</span>}
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="newPassword">New password</label>
@@ -213,11 +253,17 @@ export default function Profile() {
               id="newPassword"
               name="newPassword"
               type="password"
-              className="form-input"
+              className={`form-input ${passwordErrors.newPassword ? 'form-input-error' : ''}`}
               value={passwordForm.newPassword}
-              onChange={(e) => setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))}
+              onChange={(e) => { setPasswordForm((p) => ({ ...p, newPassword: e.target.value })); setPasswordErrors((prev) => ({ ...prev, newPassword: null })); }}
               required
             />
+            {getPasswordHint(passwordForm.newPassword).message && (
+              <span className={`form-hint ${getPasswordHint(passwordForm.newPassword).valid ? 'form-hint-valid' : 'form-hint-invalid'}`}>
+                {getPasswordHint(passwordForm.newPassword).message}
+              </span>
+            )}
+            {passwordErrors.newPassword && <span className="form-field-error">{passwordErrors.newPassword}</span>}
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="confirmPassword">Confirm new password</label>
@@ -225,11 +271,12 @@ export default function Profile() {
               id="confirmPassword"
               name="confirmPassword"
               type="password"
-              className="form-input"
+              className={`form-input ${passwordErrors.confirmPassword ? 'form-input-error' : ''}`}
               value={passwordForm.confirmPassword}
-              onChange={(e) => setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))}
+              onChange={(e) => { setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value })); setPasswordErrors((prev) => ({ ...prev, confirmPassword: null })); }}
               required
             />
+            {passwordErrors.confirmPassword && <span className="form-field-error">{passwordErrors.confirmPassword}</span>}
           </div>
           <button type="submit" className="btn btn-secondary" disabled={passwordSaving}>
             {passwordSaving ? 'Updating…' : 'Change password'}

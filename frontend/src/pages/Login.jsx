@@ -1,25 +1,40 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { validateEmail } from '../utils/validation';
 
 export default function Login() {
   const { login } = useAuth();
 
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-  });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: null }));
+  }
+
+  function handleBlur(e) {
+    const { name, value } = e.target;
+    if (name === 'email') {
+      const msg = validateEmail(value);
+      setFieldErrors((prev) => ({ ...prev, email: msg }));
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    const emailErr = validateEmail(form.email);
+    const passwordErr = !form.password?.trim() ? 'Password is required' : null;
+    const errs = {};
+    if (emailErr) errs.email = emailErr;
+    if (passwordErr) errs.password = passwordErr;
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setLoading(true);
     try {
       await login(form);
@@ -52,11 +67,13 @@ export default function Login() {
             id="email"
             type="email"
             name="email"
-            className="form-input"
+            className={`form-input ${fieldErrors.email ? 'form-input-error' : ''}`}
             value={form.email}
             onChange={handleChange}
+            onBlur={handleBlur}
             required
           />
+          {fieldErrors.email && <span className="form-field-error">{fieldErrors.email}</span>}
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="password">Password</label>
@@ -64,11 +81,12 @@ export default function Login() {
             id="password"
             type="password"
             name="password"
-            className="form-input"
+            className={`form-input ${fieldErrors.password ? 'form-input-error' : ''}`}
             value={form.password}
             onChange={handleChange}
             required
           />
+          {fieldErrors.password && <span className="form-field-error">{fieldErrors.password}</span>}
         </div>
         <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>
           {loading ? 'Logging in...' : 'Log in'}

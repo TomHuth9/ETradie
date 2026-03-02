@@ -367,6 +367,18 @@ a:hover {
   color: var(--color-primary);
 }
 
+.form-field-error {
+  display: block;
+  margin-top: var(--space-xs);
+  font-size: 0.8125rem;
+  color: var(--color-error);
+}
+
+.form-input.form-input-error,
+.form-textarea.form-input-error {
+  border-color: var(--color-error);
+}
+
 /* Page sections */
 .page-header {
   margin-bottom: var(--space-xl);

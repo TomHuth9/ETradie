@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import { validatePassword, getPasswordHint } from '../utils/validation';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -10,17 +11,19 @@ export default function ResetPassword() {
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
+
+  const passwordHint = getPasswordHint(password);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (password !== confirm) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    if (!token) {
-      toast.error('Invalid reset link');
-      return;
-    }
+    setPasswordError('');
+    setConfirmError('');
+    const pwErr = validatePassword(password);
+    if (pwErr) { setPasswordError(pwErr); return; }
+    if (password !== confirm) { setConfirmError('Passwords do not match'); return; }
+    if (!token) { toast.error('Invalid reset link'); return; }
     setLoading(true);
     try {
       await api.post('/auth/reset-password', { token, newPassword: password });
@@ -57,23 +60,30 @@ export default function ResetPassword() {
           <input
             id="password"
             type="password"
-            className="form-input"
+            className={`form-input ${passwordError ? 'form-input-error' : ''}`}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); setPasswordError(''); }}
             required
             minLength={8}
           />
+          {passwordHint.message && (
+            <span className={`form-hint ${passwordHint.valid ? 'form-hint-valid' : 'form-hint-invalid'}`}>
+              {passwordHint.message}
+            </span>
+          )}
+          {passwordError && <span className="form-field-error">{passwordError}</span>}
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="confirm">Confirm password</label>
           <input
             id="confirm"
             type="password"
-            className="form-input"
+            className={`form-input ${confirmError ? 'form-input-error' : ''}`}
             value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
+            onChange={(e) => { setConfirm(e.target.value); setConfirmError(''); }}
             required
           />
+          {confirmError && <span className="form-field-error">{confirmError}</span>}
         </div>
         <button type="submit" className="btn btn-primary" disabled={loading || !token}>
           {loading ? 'Resetting…' : 'Reset password'}

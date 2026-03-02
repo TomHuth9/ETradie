@@ -2,14 +2,19 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import { validateEmail } from '../utils/validation';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [emailError, setEmailError] = useState('');
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const err = validateEmail(email);
+    setEmailError(err || '');
+    if (err) return;
     setLoading(true);
     try {
       await api.post('/auth/forgot-password', { email: email.trim() });
@@ -48,11 +53,12 @@ export default function ForgotPassword() {
           <input
             id="email"
             type="email"
-            className="form-input"
+            className={`form-input ${emailError ? 'form-input-error' : ''}`}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setEmailError(''); }}
             required
           />
+          {emailError && <span className="form-field-error">{emailError}</span>}
         </div>
         <button type="submit" className="btn btn-primary" disabled={loading}>
           {loading ? 'Sending…' : 'Send reset link'}

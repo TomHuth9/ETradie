@@ -8,6 +8,9 @@ const {
   respondToJobSchema,
   submitReviewSchema,
   sendMessageSchema,
+  idParamSchema,
+  getMyJobsSchema,
+  getNearbyJobsSchema,
 } = require('../validators/schemas');
 const {
   createJob,
@@ -23,17 +26,17 @@ const { listMessages, sendMessage } = require('../controllers/messageController'
 const { submitReview, listReviewsForJob } = require('../controllers/reviewController');
 
 router.post('/', auth, validateRequest(createJobSchema), createJob);
-router.get('/my', auth, getMyJobs); // GET /jobs/my
-router.get('/nearby', auth, getNearbyJobs); // GET /jobs/nearby (must be before /:id)
-router.get('/:id/messages', auth, listMessages);
+router.get('/my', auth, validateRequest(getMyJobsSchema), getMyJobs);
+router.get('/nearby', auth, validateRequest(getNearbyJobsSchema), getNearbyJobs);
+router.get('/:id/messages', auth, validateRequest(idParamSchema), listMessages);
 router.post('/:id/messages', auth, validateRequest(sendMessageSchema), sendMessage);
-router.get('/:id/reviews', auth, listReviewsForJob);
+router.get('/:id/reviews', auth, validateRequest(idParamSchema), listReviewsForJob);
 router.post('/:id/reviews', auth, validateRequest(submitReviewSchema), submitReview);
-router.get('/:id', auth, getJobById);
+router.get('/:id', auth, validateRequest(idParamSchema), getJobById);
 router.post('/:id/respond', auth, validateRequest(respondToJobSchema), respondToJob);
-router.post('/:id/cancel', auth, cancelJob);
-router.post('/:id/close', auth, closeJob);
-router.post('/:id/complete', auth, completeJob);
+router.post('/:id/cancel', auth, validateRequest(idParamSchema), cancelJob);
+router.post('/:id/close', auth, validateRequest(idParamSchema), closeJob);
+router.post('/:id/complete', auth, validateRequest(idParamSchema), completeJob);
 
 module.exports = router;
 

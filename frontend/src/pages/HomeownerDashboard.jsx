@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { formatJobDate, getStatusBadgeClass } from '../utils/format';
+import { validateJobTitle, validateJobDescription, validateLocationText } from '../utils/validation';
 
 export default function HomeownerDashboard() {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ export default function HomeownerDashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [myJobs, setMyJobs] = useState([]);
   const [myJobsLoading, setMyJobsLoading] = useState(false);
   const [myJobsError, setMyJobsError] = useState('');
@@ -84,10 +86,26 @@ export default function HomeownerDashboard() {
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: null }));
+  }
+
+  function handleBlur(e) {
+    const { name, value } = e.target;
+    let msg = null;
+    if (name === 'title') msg = validateJobTitle(value);
+    else if (name === 'description') msg = validateJobDescription(value);
+    else if (name === 'locationText') msg = validateLocationText(value);
+    setFieldErrors((prev) => (msg != null ? { ...prev, [name]: msg } : { ...prev, [name]: null }));
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const errs = {};
+    const t = validateJobTitle(form.title); if (t) errs.title = t;
+    const d = validateJobDescription(form.description); if (d) errs.description = d;
+    const l = validateLocationText(form.locationText); if (l) errs.locationText = l;
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setSubmitting(true);
     setMessage('');
     setError('');
@@ -138,25 +156,29 @@ export default function HomeownerDashboard() {
               id="title"
               type="text"
               name="title"
-              className="form-input"
+              className={`form-input ${fieldErrors.title ? 'form-input-error' : ''}`}
               value={form.title}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="e.g. Fix leaking radiator"
               required
             />
+            {fieldErrors.title && <span className="form-field-error">{fieldErrors.title}</span>}
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="description">Description</label>
             <textarea
               id="description"
               name="description"
-              className="form-textarea"
+              className={`form-textarea ${fieldErrors.description ? 'form-input-error' : ''}`}
               value={form.description}
               onChange={handleChange}
+              onBlur={handleBlur}
               rows={4}
               placeholder="Describe the job in detail..."
               required
             />
+            {fieldErrors.description && <span className="form-field-error">{fieldErrors.description}</span>}
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="category">Trade category</label>
@@ -181,12 +203,14 @@ export default function HomeownerDashboard() {
               id="locationText"
               type="text"
               name="locationText"
-              className="form-input"
+              className={`form-input ${fieldErrors.locationText ? 'form-input-error' : ''}`}
               value={form.locationText}
               onChange={handleChange}
+              onBlur={handleBlur}
               placeholder="Will default to your saved address, but you can edit it"
               required
             />
+            {fieldErrors.locationText && <span className="form-field-error">{fieldErrors.locationText}</span>}
           </div>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Posting job...' : 'Post job'}

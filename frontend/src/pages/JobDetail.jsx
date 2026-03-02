@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { formatJobDate, getStatusBadgeClass } from '../utils/format';
+import { validateMessageContent, validateReviewComment } from '../utils/validation';
 
 export default function JobDetail() {
   const { id } = useParams();
@@ -24,6 +25,8 @@ export default function JobDetail() {
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [homeownerRating, setHomeownerRating] = useState(null);
+  const [messageError, setMessageError] = useState('');
+  const [reviewCommentError, setReviewCommentError] = useState('');
 
   async function loadJob() {
     setError('');
@@ -223,13 +226,16 @@ export default function JobDetail() {
 
   async function handleSendMessage(e) {
     e.preventDefault();
-    if (!messageInput.trim() || sendingMessage) return;
+    const msgErr = validateMessageContent(messageInput);
+    setMessageError(msgErr || '');
+    if (msgErr || sendingMessage) return;
     setSendingMessage(true);
     setError('');
     try {
       const res = await api.post(`/jobs/${id}/messages`, { content: messageInput.trim() });
       setMessages((prev) => (Array.isArray(prev) ? prev : []).concat(res.data));
       setMessageInput('');
+      setMessageError('');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to send message.');
     } finally {
@@ -239,13 +245,16 @@ export default function JobDetail() {
 
   async function handleSubmitReview(e) {
     e.preventDefault();
-    if (submittingReview) return;
+    const commentErr = validateReviewComment(reviewComment);
+    setReviewCommentError(commentErr || '');
+    if (commentErr || submittingReview) return;
     setSubmittingReview(true);
     setError('');
     try {
       const res = await api.post(`/jobs/${id}/reviews`, { rating: reviewRating, comment: reviewComment.trim() || undefined });
       setReviews((prev) => (Array.isArray(prev) ? prev : []).concat(res.data));
       setReviewComment('');
+      setReviewCommentError('');
       await loadJob();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit review.');
@@ -411,13 +420,14 @@ export default function JobDetail() {
               <form onSubmit={handleSendMessage}>
                 <div className="form-group" style={{ marginBottom: '0.5rem' }}>
                   <textarea
-                    className="form-textarea"
+                    className={`form-textarea ${messageError ? 'form-input-error' : ''}`}
                     rows={2}
                     placeholder="Type a message…"
                     value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
+                    onChange={(e) => { setMessageInput(e.target.value); setMessageError(''); }}
                     disabled={sendingMessage}
                   />
+                  {messageError && <span className="form-field-error">{messageError}</span>}
                 </div>
                 <button type="submit" className="btn btn-primary" disabled={sendingMessage || !messageInput.trim()}>
                   {sendingMessage ? 'Sending…' : 'Send'}
@@ -466,13 +476,14 @@ export default function JobDetail() {
                   <div className="form-group">
                     <label className="form-label">Comment (optional)</label>
                     <textarea
-                      className="form-textarea"
+                      className={`form-textarea ${reviewCommentError ? 'form-input-error' : ''}`}
                       rows={2}
                       value={reviewComment}
-                      onChange={(e) => setReviewComment(e.target.value)}
+                      onChange={(e) => { setReviewComment(e.target.value); setReviewCommentError(''); }}
                       placeholder="How did it go?"
                       disabled={submittingReview}
                     />
+                    {reviewCommentError && <span className="form-field-error">{reviewCommentError}</span>}
                   </div>
                   <button type="submit" className="btn btn-primary" disabled={submittingReview}>
                     {submittingReview ? 'Submitting…' : 'Submit review'}

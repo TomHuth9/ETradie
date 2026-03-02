@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  validateName,
+  validateEmail,
+  validatePassword,
+  validateAddress,
+  validateTownOrCity,
+  getPasswordHint,
+} from '../utils/validation';
 
 export default function Register() {
   const { register } = useAuth();
@@ -14,31 +22,40 @@ export default function Register() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [passwordHint, setPasswordHint] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: null }));
+  }
 
-    if (name === 'password') {
-      const pwd = value;
-      if (!pwd) {
-        setPasswordHint('');
-      } else if (pwd.length < 8) {
-        setPasswordHint('Use at least 8 characters.');
-      } else if (!/[A-Z]/.test(pwd) || !/[a-z]/.test(pwd) || !/[0-9]/.test(pwd)) {
-        setPasswordHint(
-          'Include at least one uppercase letter, one lowercase letter, and one number.'
-        );
-      } else {
-        setPasswordHint('Looks good.');
-      }
-    }
+  function handleBlur(e) {
+    const { name, value } = e.target;
+    let msg = null;
+    if (name === 'name') msg = validateName(value);
+    else if (name === 'email') msg = validateEmail(value);
+    else if (name === 'password') msg = validatePassword(value);
+    else if (name === 'address') msg = validateAddress(value, form.role === 'homeowner');
+    else if (name === 'townOrCity') msg = validateTownOrCity(value, form.role === 'tradesperson');
+    setFieldErrors((prev) => (msg != null ? { ...prev, [name]: msg } : { ...prev, [name]: null }));
+  }
+
+  function validateForm() {
+    const errs = {};
+    const n = validateName(form.name); if (n) errs.name = n;
+    const em = validateEmail(form.email); if (em) errs.email = em;
+    const pw = validatePassword(form.password); if (pw) errs.password = pw;
+    if (form.role === 'homeowner') { const a = validateAddress(form.address, true); if (a) errs.address = a; }
+    if (form.role === 'tradesperson') { const t = validateTownOrCity(form.townOrCity, true); if (t) errs.townOrCity = t; }
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    if (!validateForm()) return;
     setLoading(true);
     try {
       await register(form);
@@ -50,6 +67,8 @@ export default function Register() {
       setLoading(false);
     }
   }
+
+  const passwordHint = getPasswordHint(form.password);
 
   const isHomeowner = form.role === 'homeowner';
 
@@ -74,11 +93,13 @@ export default function Register() {
             id="name"
             type="text"
             name="name"
-            className="form-input"
+            className={`form-input ${fieldErrors.name ? 'form-input-error' : ''}`}
             value={form.name}
             onChange={handleChange}
+            onBlur={handleBlur}
             required
           />
+          {fieldErrors.name && <span className="form-field-error">{fieldErrors.name}</span>}
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="email">Email</label>
@@ -86,11 +107,13 @@ export default function Register() {
             id="email"
             type="email"
             name="email"
-            className="form-input"
+            className={`form-input ${fieldErrors.email ? 'form-input-error' : ''}`}
             value={form.email}
             onChange={handleChange}
+            onBlur={handleBlur}
             required
           />
+          {fieldErrors.email && <span className="form-field-error">{fieldErrors.email}</span>}
         </div>
         <div className="form-group">
           <label className="form-label" htmlFor="password">Password</label>
@@ -98,18 +121,18 @@ export default function Register() {
             id="password"
             type="password"
             name="password"
-            className="form-input"
+            className={`form-input ${fieldErrors.password ? 'form-input-error' : ''}`}
             value={form.password}
             onChange={handleChange}
+            onBlur={handleBlur}
             required
           />
-          {passwordHint && (
-            <span
-              className={`form-hint ${passwordHint === 'Looks good.' ? 'form-hint-valid' : 'form-hint-invalid'}`}
-            >
-              {passwordHint}
+          {passwordHint.message && (
+            <span className={`form-hint ${passwordHint.valid ? 'form-hint-valid' : 'form-hint-invalid'}`}>
+              {passwordHint.message}
             </span>
           )}
+          {fieldErrors.password && <span className="form-field-error">{fieldErrors.password}</span>}
         </div>
 
         <fieldset className="fieldset">
@@ -145,12 +168,14 @@ export default function Register() {
               id="address"
               type="text"
               name="address"
-              className="form-input"
+              className={`form-input ${fieldErrors.address ? 'form-input-error' : ''}`}
               placeholder="Full address including postcode"
               value={form.address}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
             />
+            {fieldErrors.address && <span className="form-field-error">{fieldErrors.address}</span>}
           </div>
         ) : (
           <div className="form-group">
@@ -159,12 +184,14 @@ export default function Register() {
               id="townOrCity"
               type="text"
               name="townOrCity"
-              className="form-input"
+              className={`form-input ${fieldErrors.townOrCity ? 'form-input-error' : ''}`}
               placeholder='e.g. "Glasgow"'
               value={form.townOrCity}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
             />
+            {fieldErrors.townOrCity && <span className="form-field-error">{fieldErrors.townOrCity}</span>}
           </div>
         )}
 
