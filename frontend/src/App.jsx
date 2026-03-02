@@ -13,9 +13,9 @@ import Footer from './components/Footer';
 import { useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children, allowedRoles }) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
-  if (!user) {
+  if (!user || !token) {
     return <Navigate to="/login" replace />;
   }
 

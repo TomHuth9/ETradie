@@ -11,10 +11,11 @@ function loadInitialAuth() {
     const stored = window.localStorage.getItem('etradie_auth');
     if (!stored) return { user: null, token: null };
     const parsed = JSON.parse(stored);
-    return {
-      user: parsed.user || null,
-      token: parsed.token || null,
-    };
+    const user = parsed?.user || null;
+    const token = parsed?.token || null;
+    // Prevent half-auth states (user without token, or token without user).
+    if (!user || !token) return { user: null, token: null };
+    return { user, token };
   } catch {
     return { user: null, token: null };
   }
