@@ -7,14 +7,13 @@ describe('E2E: auth and basic homeowner flow', () => {
   const password = 'Password123';
 
   afterAll(async () => {
-    // Clean up test user and any jobs they created.
     try {
       await prisma.job.deleteMany({
         where: { homeowner: { email: uniqueEmail } },
       });
       await prisma.user.deleteMany({ where: { email: uniqueEmail } });
-    } finally {
-      await prisma.$disconnect();
+    } catch (_) {
+      // ignore
     }
   });
 
@@ -86,6 +85,81 @@ describe('E2E: auth and basic homeowner flow', () => {
       : [];
 
     expect(jobs.some((j) => j.id === jobId)).toBe(true);
+  });
+});
+
+describe('E2E: tradesperson sees nearby job', () => {
+  const homeownerEmail = `test-homeowner-${Date.now()}@example.com`;
+  const tradespersonEmail = `test-tradesperson-${Date.now()}@example.com`;
+  const password = 'Password123';
+
+  afterAll(async () => {
+    try {
+      await prisma.job.deleteMany({
+        where: { homeowner: { email: homeownerEmail } },
+      });
+      await prisma.user.deleteMany({
+        where: {
+          email: { in: [homeownerEmail.toLowerCase(), tradespersonEmail.toLowerCase()] },
+        },
+      });
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+
+  test('homeowner posts job, tradesperson fetches it via /jobs/nearby', async () => {
+    // Register homeowner and create a job
+    const regHome = await request(app)
+      .post('/auth/register')
+      .send({
+        name: 'Test Homeowner',
+        email: homeownerEmail,
+        password,
+        role: 'homeowner',
+        address: '10 High Street, Glasgow',
+      });
+    expect(regHome.status).toBe(201);
+    const homeownerToken = regHome.body.token;
+
+    const jobRes = await request(app)
+      .post('/jobs')
+      .set('Authorization', `Bearer ${homeownerToken}`)
+      .send({
+        title: 'Fix boiler',
+        description: 'Boiler not heating.',
+        category: 'HEATING_BOILERS',
+        locationText: '10 High Street, Glasgow',
+      });
+    expect(jobRes.status).toBe(201);
+    const jobId = jobRes.body.id;
+
+    // Register tradesperson (same area so geocoding in test gives same coords = nearby)
+    const regTrade = await request(app)
+      .post('/auth/register')
+      .send({
+        name: 'Test Tradesperson',
+        email: tradespersonEmail,
+        password,
+        role: 'tradesperson',
+        townOrCity: 'Glasgow',
+      });
+    expect(regTrade.status).toBe(201);
+    const tradespersonToken = regTrade.body.token;
+
+    const nearbyRes = await request(app)
+      .get('/jobs/nearby')
+      .set('Authorization', `Bearer ${tradespersonToken}`);
+
+    expect(nearbyRes.status).toBe(200);
+    expect(Array.isArray(nearbyRes.body)).toBe(true);
+    const nearby = nearbyRes.body;
+    expect(nearby.some((j) => j.id === jobId)).toBe(true);
+    const job = nearby.find((j) => j.id === jobId);
+    expect(job).toMatchObject({
+      title: 'Fix boiler',
+      category: 'HEATING_BOILERS',
+    });
   });
 });
 
