@@ -8,6 +8,11 @@ async function geocodeToLatLng(query) {
     throw new Error('Geocoding requires a non-empty address or place name');
   }
 
+  // Dummy coordinates for testing and local development to avoid hitting the API repeatedly.
+  if (process.env.NODE_ENV === 'test') {
+    return { lat: 55.8642, lng: -4.2518 }; 
+  }
+
   const url = 'https://nominatim.openstreetmap.org/search';
 
   const response = await axios.get(url, {
