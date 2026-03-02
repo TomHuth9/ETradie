@@ -22,20 +22,27 @@ function loadInitialAuth() {
 
 export function AuthProvider({ children }) {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+  const [user, setUser] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const { user: initialUser } = loadInitialAuth();
+    return initialUser;
+  });
+  const [token, setToken] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const { token: initialToken } = loadInitialAuth();
+    return initialToken;
+  });
   const [socket, setSocket] = useState(null);
   const [isSocketConnected, setIsSocketConnected] = useState(false);
 
-  // Initialise auth state once on mount.
+  // Ensure Axios has the auth header when token is present.
   useEffect(() => {
-    const { user: initialUser, token: initialToken } = loadInitialAuth();
-    if (initialUser && initialToken) {
-      setUser(initialUser);
-      setToken(initialToken);
-      api.defaults.headers.common.Authorization = `Bearer ${initialToken}`;
+    if (token) {
+      api.defaults.headers.common.Authorization = `Bearer ${token}`;
+    } else {
+      delete api.defaults.headers.common.Authorization;
     }
-  }, []);
+  }, [token]);
 
   // Keep localStorage in sync whenever auth changes.
   useEffect(() => {

@@ -23,6 +23,7 @@ export default function JobDetail() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [homeownerRating, setHomeownerRating] = useState(null);
 
   async function loadJob() {
     setError('');
@@ -101,6 +102,23 @@ export default function JobDetail() {
     socket.on('message:new', handler);
     return () => { socket.off('message:new', handler); };
   }, [socket, id, canMessageForEffects]);
+
+  const homeownerId = job?.homeowner?.id;
+
+  useEffect(() => {
+    if (!homeownerId) return;
+    let cancelled = false;
+    api.get(`/users/${homeownerId}/rating`)
+      .then((res) => {
+        if (!cancelled) setHomeownerRating(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setHomeownerRating(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [homeownerId]);
 
   const categoryLabel = job && categories.length
     ? (categories.find((c) => c.id === job.category)?.label ?? job.category)
@@ -275,6 +293,14 @@ export default function JobDetail() {
         {job.homeowner && (
           <div className="card-meta">
             Posted by {job.homeowner.name}
+            {isTradesperson && homeownerRating?.averageRating != null && (
+              <>
+                {' · ★ '}
+                {homeownerRating.averageRating}
+                {homeownerRating.reviewCount > 0 &&
+                  ` (${homeownerRating.reviewCount} review${homeownerRating.reviewCount === 1 ? '' : 's'})`}
+              </>
+            )}
           </div>
         )}
 
