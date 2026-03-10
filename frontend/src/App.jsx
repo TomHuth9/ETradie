@@ -11,6 +11,7 @@ import Profile from './pages/Profile';
 import TradespersonProfile from './pages/TradespersonProfile';
 import Footer from './components/Footer';
 import { useAuth } from './contexts/AuthContext';
+import { useNotifications } from './contexts/NotificationsContext';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, token } = useAuth();
@@ -29,6 +30,8 @@ function ProtectedRoute({ children, allowedRoles }) {
 
 function Layout({ children }) {
   const { user, logout } = useAuth();
+  const { unreadCount, notifications, markAsRead, markAllRead } = useNotifications();
+  const hasUnread = unreadCount > 0;
 
   return (
     <div className="container">
@@ -51,6 +54,56 @@ function Layout({ children }) {
               {user.role === 'TRADESPERSON' && (
                 <Link to="/tradesperson-dashboard" className="nav-link">Jobs</Link>
               )}
+              <div className="nav-link" style={{ position: 'relative' }}>
+                <details>
+                  <summary style={{ listStyle: 'none', cursor: 'pointer' }}>
+                    Notifications{hasUnread ? ` (${unreadCount})` : ''}
+                  </summary>
+                  <div className="card" style={{ position: 'absolute', right: 0, marginTop: '0.5rem', zIndex: 20, minWidth: '260px', maxWidth: '320px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.9375rem' }}>Notifications</span>
+                      {hasUnread && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ fontSize: '0.75rem', padding: 0 }}
+                          onClick={markAllRead}
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                    {notifications.length === 0 ? (
+                      <p className="card-meta">No notifications yet.</p>
+                    ) : (
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: '260px', overflowY: 'auto' }}>
+                        {notifications.map((n) => (
+                          <li
+                            key={n.id}
+                            style={{
+                              padding: '0.5rem 0',
+                              borderBottom: '1px solid var(--color-border)',
+                              opacity: n.readAt ? 0.7 : 1,
+                              cursor: n.link ? 'pointer' : 'default',
+                            }}
+                            onClick={() => {
+                              if (!n.readAt) markAsRead(n.id);
+                            }}
+                          >
+                            {n.link ? (
+                              <Link to={n.link} className="card-meta-link">
+                                {n.message}
+                              </Link>
+                            ) : (
+                              <span style={{ fontSize: '0.875rem' }}>{n.message}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </details>
+              </div>
               <Link to="/profile" className="nav-link">Profile</Link>
               <button type="button" className="btn btn-secondary" onClick={logout}>
                 Logout
