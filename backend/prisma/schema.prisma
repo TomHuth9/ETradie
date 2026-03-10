@@ -153,3 +153,14 @@ model Review {
   @@unique([jobId, reviewerId])
 }
 
+model Notification {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  type      String
+  message   String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
