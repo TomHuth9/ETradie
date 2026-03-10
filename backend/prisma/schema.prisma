@@ -81,6 +81,7 @@ model User {
   messagesSent   Message[]
   reviewsGiven   Review[]          @relation("Reviewer")
   reviewsReceived Review[]         @relation("Reviewee")
+  notifications  Notification[]
 }
 
 model TradespersonCategory {
