@@ -8,6 +8,7 @@ const authRoutes = require('./routes/authRoutes');
 const jobRoutes = require('./routes/jobRoutes');
 const tradeRoutes = require('./routes/tradeRoutes');
 const userRoutes = require('./routes/userRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -28,6 +29,7 @@ const apiLimiter = rateLimit({
 app.use('/auth', authLimiter);
 app.use('/jobs', apiLimiter);
 app.use('/users', apiLimiter);
+app.use('/notifications', apiLimiter);
 
 // Configure CORS so the React dev server can talk to this API.
 // CLIENT_URL is defined in .env; fall back to a sensible local default.
@@ -49,6 +51,7 @@ app.use('/auth', authRoutes);
 app.use('/jobs', jobRoutes);
 app.use('/trades', tradeRoutes);
 app.use('/users', userRoutes);
+app.use('/notifications', notificationRoutes);
 
 // Central error handler to keep controllers cleaner.
 app.use(errorHandler);

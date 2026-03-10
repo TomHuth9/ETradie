@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { createNotification } = require('../services/notificationService');
 
 // Helper: check if the current user can access this job's conversation (homeowner or accepted tradesperson).
 async function getJobIfParticipant(jobId, userId) {
@@ -81,6 +82,18 @@ async function sendMessage(req, res, next) {
     const acceptedTradespersonId = job.responses?.[0]?.tradespersonId;
     if (io && acceptedTradespersonId && acceptedTradespersonId !== req.user.id) {
       io.to(`user:${acceptedTradespersonId}`).emit('message:new', { jobId: id, message });
+    }
+
+    // Notifications for the other party in the conversation.
+    const recipientId =
+      job.homeownerId === req.user.id ? acceptedTradespersonId : job.homeownerId;
+    if (recipientId && recipientId !== req.user.id) {
+      await createNotification(req, {
+        userId: recipientId,
+        type: 'message',
+        message: `New message on \"${job.title}\"`,
+        link: `/jobs/${id}`,
+      });
     }
 
     res.status(201).json(message);

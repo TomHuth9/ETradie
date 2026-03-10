@@ -1,6 +1,7 @@
 const prisma = require('../prismaClient');
 const { geocodeToLatLng } = require('../services/geocodingService');
 const { haversineDistanceKm } = require('../utils/haversine');
+const { createNotification } = require('../services/notificationService');
 
 // POST /jobs
 // Homeowner posts a new job. We geocode the job location and broadcast to nearby tradespeople.
@@ -154,11 +155,17 @@ async function respondToJob(req, res, next) {
       },
     });
 
-    // If accepted, mark the job itself as ACCEPTED.
+    // If accepted, mark the job itself as ACCEPTED and notify the homeowner.
     if (prismaResponse === 'ACCEPTED' && job.status === 'PENDING') {
       await prisma.job.update({
         where: { id },
         data: { status: 'ACCEPTED' },
+      });
+      await createNotification(req, {
+        userId: job.homeownerId,
+        type: 'job_accepted',
+        message: `Your job \"${job.title}\" was accepted`,
+        link: `/jobs/${id}`,
       });
     }
 

@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { createNotification } = require('../services/notificationService');
 
 // GET /users/:id/profile — public-ish profile for a user (tradesperson: name, town, rating, categories, availability).
 async function getProfile(req, res, next) {
@@ -112,6 +113,14 @@ async function submitReview(req, res, next) {
       include: {
         reviewee: { select: { id: true, name: true } },
       },
+    });
+
+    // Notify the person who received the review.
+    await createNotification(req, {
+      userId: revieweeId,
+      type: 'review',
+      message: `You received a new review on \"${job.title}\"`,
+      link: `/profile/${revieweeId}`,
     });
 
     res.status(201).json(review);
