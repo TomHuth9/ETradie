@@ -17,7 +17,14 @@ export default function Profile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', address: '', townOrCity: '', availability: true, categories: [] });
+  const [form, setForm] = useState({
+    name: '',
+    address: '',
+    townOrCity: '',
+    availability: true,
+    workingHours: '',
+    categories: [],
+  });
   const [categoriesList, setCategoriesList] = useState([]);
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordSaving, setPasswordSaving] = useState(false);
@@ -38,6 +45,7 @@ export default function Profile() {
           address: res.data.address || '',
           townOrCity: res.data.townOrCity || '',
           availability: res.data.availability !== false,
+          workingHours: res.data.workingHours || '',
           categories: res.data.categories ?? res.data.tradespersonCategories ?? [],
         });
       } catch (err) {
@@ -95,6 +103,7 @@ export default function Profile() {
         ...(user?.role === 'TRADESPERSON' && {
           townOrCity: form.townOrCity,
           availability: form.availability,
+          workingHours: form.workingHours,
           categories: form.categories,
         }),
       });
@@ -205,6 +214,18 @@ export default function Profile() {
                   />
                   {' '}Available for new jobs
                 </label>
+              </div>
+              <div className="form-group">
+                <label className="form-label" htmlFor="workingHours">Standard working hours</label>
+                <input
+                  id="workingHours"
+                  name="workingHours"
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Mon–Fri 09:00–17:00"
+                  value={form.workingHours}
+                  onChange={handleChange}
+                />
               </div>
               {categoriesList.length > 0 && (
                 <div className="form-group">

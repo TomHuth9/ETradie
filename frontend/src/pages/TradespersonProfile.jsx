@@ -68,8 +68,15 @@ export default function TradespersonProfile() {
             <> · ★ {profile.averageRating} {profile.reviewCount != null ? `(${profile.reviewCount} review${profile.reviewCount === 1 ? '' : 's'})` : ''}</>
           )}
         </p>
-        {isTradesperson && profile.availability !== false && (
-          <span className="badge badge-success">Available for jobs</span>
+        {isTradesperson && (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+            {profile.availability !== false && (
+              <span className="badge badge-success">Available for jobs</span>
+            )}
+            {profile.isOnline && (
+              <span className="badge badge-accepted">Currently online</span>
+            )}
+          </div>
         )}
       </div>
 
@@ -87,6 +94,13 @@ export default function TradespersonProfile() {
           ) : (
             <p className="card-meta">No categories set.</p>
           )}
+        </div>
+      )}
+
+      {isTradesperson && profile.workingHours && (
+        <div className="card" style={{ marginTop: '1.5rem' }}>
+          <h3 style={{ marginTop: 0 }}>Standard working hours</h3>
+          <p className="card-meta">{profile.workingHours}</p>
         </div>
       )}
 
