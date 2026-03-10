@@ -29,6 +29,13 @@ module.exports = function initSockets(server) {
 
       const user = await prisma.user.findUnique({
         where: { id: payload.userId },
+        select: {
+          id: true,
+          role: true,
+          lat: true,
+          lng: true,
+          availability: true,
+        },
       });
 
       if (!user) {
@@ -41,6 +48,7 @@ module.exports = function initSockets(server) {
         role: user.role,
         lat: user.lat,
         lng: user.lng,
+        availability: user.availability,
       };
 
       // Each user joins their own room so we can send targeted events later if needed.
@@ -94,6 +102,8 @@ module.exports = function initSockets(server) {
       return;
     }
 
+    const candidates = [];
+
     for (const [, socket] of io.sockets.sockets) {
       const user = socket.user;
 
@@ -113,15 +123,31 @@ module.exports = function initSockets(server) {
       );
 
       if (distance <= RADIUS_KM) {
-        socket.emit('job:new', {
-          id: job.id,
-          title: job.title,
-          description: job.description,
-          category: job.category,
-          locationText: job.locationText,
-          createdAt: job.createdAt,
+        candidates.push({
+          socket,
+          distance,
+          availability: user.availability === true,
         });
       }
+    }
+
+    // Prioritise tradespeople who are marked as available, then by proximity.
+    candidates.sort((a, b) => {
+      if (a.availability !== b.availability) {
+        return a.availability ? -1 : 1; // available first
+      }
+      return a.distance - b.distance; // nearer first
+    });
+
+    for (const { socket } of candidates) {
+      socket.emit('job:new', {
+        id: job.id,
+        title: job.title,
+        description: job.description,
+        category: job.category,
+        locationText: job.locationText,
+        createdAt: job.createdAt,
+      });
     }
   }
 
