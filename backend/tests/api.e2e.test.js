@@ -13,7 +13,6 @@ describe('E2E: auth and basic homeowner flow', () => {
       });
       await prisma.user.deleteMany({ where: { email: uniqueEmail } });
     } catch (_) {
-      // ignore
     }
   });
 
@@ -50,7 +49,7 @@ describe('E2E: auth and basic homeowner flow', () => {
     expect(loginRes.body).toHaveProperty('token');
     const token = loginRes.body.token;
 
-    // Fetch trade categories (no auth required but good sanity check)
+    // Fetch trade categories
     const categoriesRes = await request(app).get('/trades/categories');
     expect(categoriesRes.status).toBe(200);
     expect(Array.isArray(categoriesRes.body)).toBe(true);
