@@ -14,7 +14,6 @@ module.exports = function authMiddleware(req, res, next) {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Attach basic user info from the token to the request.
     req.user = {
       id: payload.userId,
       role: payload.role,

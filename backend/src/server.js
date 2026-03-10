@@ -7,14 +7,12 @@ const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
 
 // Initialise Socket.IO and attach it to the HTTP server.
-// We keep a reference to both the server and io instance on the Express app
-// so controllers can broadcast new jobs without importing Socket.IO directly.
+// We keep a reference to both the server and io instance on the Express app so controllers can broadcast new jobs without importing Socket.IO directly.
 const io = require('./sockets')(server);
 app.set('serverInstance', server);
 app.set('io', io);
 
 server.listen(PORT, () => {
-  // This log is useful in development to confirm the server is running.
   console.log(`ETradie backend listening on port ${PORT}`);
 });
 

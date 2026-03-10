@@ -101,7 +101,6 @@ async function getJobById(req, res, next) {
           agg._avg.rating != null ? Math.round(agg._avg.rating * 10) / 10 : null;
         job.responses[0].tradesperson.reviewCount = agg._count.rating;
       } catch (_) {
-        // Review table may not exist yet; leave rating fields off
       }
     }
 

@@ -19,6 +19,8 @@ function serializeUser(user) {
     lat: user.lat,
     lng: user.lng,
     availability: user.availability,
+    workingHours: user.workingHours,
+    isOnline: user.isOnline,
     categories,
   };
 }
@@ -55,7 +57,7 @@ async function getMe(req, res, next) {
 // PATCH /auth/profile — update name, address/townOrCity (re-geocode), availability (tradesperson), categories (tradesperson).
 async function updateProfile(req, res, next) {
   try {
-    const { name, address, townOrCity, availability, categories } = req.body;
+    const { name, address, townOrCity, availability, workingHours, categories } = req.body;
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
@@ -83,6 +85,10 @@ async function updateProfile(req, res, next) {
         } catch (_) {}
       }
       if (typeof availability === 'boolean') updates.availability = availability;
+      if (typeof workingHours === 'string') {
+        const trimmed = workingHours.trim();
+        updates.workingHours = trimmed || null;
+      }
     }
 
     const updated = await prisma.user.update({

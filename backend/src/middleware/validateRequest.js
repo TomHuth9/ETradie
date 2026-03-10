@@ -1,5 +1,4 @@
-// Validates req using a Zod schema that may have body, params, query.
-// On success, assigns parsed values to req.body, req.params, req.query and calls next().
+// Validates req using a Zod schema that may have body, params, query. On success, assigns parsed values to req.body, req.params, req.query and calls next().
 function validateRequest(schema) {
   return (req, res, next) => {
     try {

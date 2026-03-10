@@ -55,8 +55,32 @@ module.exports = function initSockets(server) {
   io.on('connection', (socket) => {
     console.log(`Socket connected: ${socket.id} (user ${socket.user?.id})`);
 
+    // Mark user as online while they have at least one active socket connection.
+    if (socket.user?.id) {
+      prisma.user
+        .update({
+          where: { id: socket.user.id },
+          data: { isOnline: true },
+        })
+        .catch(() => {});
+    }
+
     socket.on('disconnect', () => {
       console.log(`Socket disconnected: ${socket.id}`);
+      const userId = socket.user?.id;
+      if (!userId) return;
+      // Only mark offline if no other active sockets for this user remain.
+      const hasOtherConnection = Array.from(io.sockets.sockets.values()).some(
+        (s) => s.id !== socket.id && s.user?.id === userId
+      );
+      if (!hasOtherConnection) {
+        prisma.user
+          .update({
+            where: { id: userId },
+            data: { isOnline: false },
+          })
+          .catch(() => {});
+      }
     });
   });
 

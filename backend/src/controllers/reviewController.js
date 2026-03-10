@@ -12,6 +12,8 @@ async function getProfile(req, res, next) {
         role: true,
         townOrCity: true,
         availability: true,
+        workingHours: true,
+        isOnline: true,
         tradespersonCategories: { select: { category: true } },
       },
     });
@@ -23,6 +25,8 @@ async function getProfile(req, res, next) {
       role: user.role,
       townOrCity: user.townOrCity,
       availability: user.availability,
+      workingHours: user.workingHours,
+      isOnline: user.isOnline,
       categories: (user.tradespersonCategories || []).map((tc) => tc.category),
     };
 

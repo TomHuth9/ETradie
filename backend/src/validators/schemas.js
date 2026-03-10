@@ -94,6 +94,7 @@ exports.updateProfileSchema = z.object({
     address: z.string().max(255).trim().optional(),
     townOrCity: z.string().max(255).trim().optional(),
     availability: z.boolean().optional(),
+    workingHours: z.string().max(255, 'Working hours is too long').trim().optional(),
     categories: z.array(tradeCategoryEnum).optional(),
   }),
 });
