@@ -70,6 +70,10 @@ model User {
   passwordResetToken       String?   @unique
   passwordResetExpiresAt   DateTime?
   availability             Boolean?  // tradesperson: true = available
+  // Standard working hours description, e.g. "Mon–Fri 09:00–17:00".
+  workingHours             String?
+  // Whether the user is currently online (active session via Socket.IO).
+  isOnline                 Boolean   @default(false)
 
   jobs           Job[]             @relation("HomeownerJobs")
   tradespersonCategories TradespersonCategory[]
