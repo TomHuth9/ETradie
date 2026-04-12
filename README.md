@@ -1,106 +1,53 @@
 # ETradie
-
-ETradie is a web app that connects homeowners with local tradespeople in real time — like “Uber for tradespeople”. Homeowners post jobs; nearby tradespeople see them live and can accept or decline.
-
-## Tech stack
-
-- **Backend:** Node.js, Express, Socket.IO, PostgreSQL, Prisma, JWT
-- **Frontend:** React (Vite), React Router, Axios, Socket.IO client
-- **Auth:** JWT; optional forgot-password flow (dev: reset token in API response)
-
+ETradie is a web application that connects homeowners who need trade work (plumbing, electrical, heating, etc.) with nearby tradespeople in real time. Homeowners post jobs with title, description, category, and location; jobs are geocoded and broadcast to tradespeople within a radius. Tradespeople see incoming requests on a dashboard, accept or decline, and can message the homeowner once a job is accepted. Completed jobs support mutual reviews. Tradespeople can set standard working hours, mark themselves available for new work, and appear online while logged in; homeowners and tradespeople can view each other’s public profiles with ratings and review history.
+The backend is Node.js and Express, with PostgreSQL via Prisma, JWT authentication (jsonwebtoken + bcryptjs), Zod request validation, express-rate-limit, and Socket.IO for live job broadcasts and messaging. The frontend is React with Vite, React Router, Axios, and react-hot-toast for feedback. Automated tests include Jest (validators, Haversine distance, API flows with Supertest) and Vitest with React Testing Library on the frontend.
+---
+## Stack
+| Layer    | Technology                                      |
+|----------|-------------------------------------------------|
+| Frontend | React 18, Vite, React Router, Axios, Socket.IO client |
+| Backend  | Node.js, Express 4                              |
+| Database | PostgreSQL via Prisma ORM                       |
+| Real-time| Socket.IO                                       |
+| Auth     | JWT (jsonwebtoken), bcryptjs                    |
+---
 ## Prerequisites
-
-- Node.js 18+
-- PostgreSQL
-- (Optional) nvm for Node version management
-
-## Setup
-
-### 1. Database
-
-Create a PostgreSQL database (e.g. `db_etradie`) and note the connection URL.
-
-### 2. Backend
-
+- Node.js 18+ (LTS recommended)
+- PostgreSQL (local or hosted, e.g. Render PostgreSQL)
+- npm
+---
+## Quick Start
+### 1. Clone and install
 ```bash
-cd backend
-cp .env.example .env
-# Edit .env: set DATABASE_URL, JWT_SECRET, PORT, CLIENT_URL, GEOCODE_USER_AGENT
-npm install
-npx prisma migrate deploy
-npx prisma db seed
-npm run dev
-```
+git clone <repo-url>
+cd ETradie
+cd backend && npm install
+cd ../frontend && npm install
+2. Configure backend environment
+Create backend/.env (see backend/.env.example if present):
 
-Backend runs at `http://localhost:4000` by default.
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend runs at `http://localhost:5173` by default. Set `VITE_API_URL` and `VITE_SOCKET_URL` if your API/Socket server is elsewhere.
-
-## Environment variables
-
-**Backend (`.env`):**
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret for signing JWTs |
-| `PORT` | Server port (default 4000) |
-| `CLIENT_URL` | Allowed CORS origin (e.g. http://localhost:5173) |
-| `GEOCODE_USER_AGENT` | User-Agent for Nominatim (OpenStreetMap) geocoding |
-
-**Frontend (optional):**
-
-- `VITE_API_URL` — API base URL (default http://localhost:4000)
-- `VITE_SOCKET_URL` — Socket.IO server URL (default same as API)
-
-## Seed accounts
-
-After `npx prisma db seed`:
-
-- **Homeowner:** `homeowner@example.com` / `Password123!`
-- **Tradesperson:** `tradesperson@example.com` / `Password123!`
-
-## Features
-
-- **Homeowners:** Register, post jobs (title, description, category, location), view “Your jobs” with filters and pagination, cancel/close/complete jobs, message accepted tradesperson, leave reviews.
-- **Tradespeople:** Register (town/city, trade categories, availability), see nearby pending jobs in real time and on load, filter by category, accept/decline, message homeowner, complete job, get reviewed.
-- **Profile:** Edit name, address/town, (tradesperson) availability and categories; change password. Forgot password (dev: token in response; production: wire up email).
-- **Discovery:** Public tradesperson profile page (name, town, rating, categories, availability).
-- **Real time:** New jobs broadcast to nearby tradespeople; new messages pushed to both participants.
-- **API:** Request validation (Zod), rate limiting on auth and API routes.
-
-## API overview
-
-- `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `PATCH /auth/profile`, `POST /auth/change-password`, `POST /auth/forgot-password`, `POST /auth/reset-password`
-- `GET /trades/categories`
-- `POST /jobs`, `GET /jobs/my`, `GET /jobs/nearby`, `GET /jobs/:id`, `POST /jobs/:id/respond`, `POST /jobs/:id/cancel`, `POST /jobs/:id/close`, `POST /jobs/:id/complete`
-- `GET /jobs/:id/messages`, `POST /jobs/:id/messages`
-- `GET /jobs/:id/reviews`, `POST /jobs/:id/reviews`
-- `GET /users/:id/profile`, `GET /users/:id/rating`
-
-## Migrations
-
-Run new migrations with:
-
-```bash
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/etradie"
+JWT_SECRET=change_me_to_a_long_random_string
+PORT=4000
+CLIENT_URL=http://localhost:5173
+3. Database migrate and seed
 cd backend
 npx prisma migrate dev
-```
+npx prisma db seed
+The seed creates demo accounts (see backend/prisma/seed.js for emails and passwords).
 
-Commit the new migration files under `prisma/migrations/`.
+4. Configure frontend (optional)
+Create frontend/.env if the API is not on the default URL:
 
-## Deploying on Render
+VITE_API_URL=http://localhost:4000
+VITE_SOCKET_URL=http://localhost:4000
+5. Run in development
+Open two terminals:
 
-See **[DEPLOY.md](./DEPLOY.md)** for step-by-step instructions to deploy the backend, frontend, and PostgreSQL on [Render](https://render.com). The repo includes a `render.yaml` blueprint you can use.
+# Terminal 1 — API + Socket.IO (default http://localhost:4000)
+cd backend
+npm run dev
 
-## License
-
-MIT
+# Terminal 2 — React app (default http://localhost:5173)
+cd frontend
+npm run dev
