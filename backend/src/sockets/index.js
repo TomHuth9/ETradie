@@ -25,7 +25,7 @@ module.exports = function initSockets(server) {
         return next(new Error('Missing auth token'));
       }
 
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
+      const payload = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
 
       const user = await prisma.user.findUnique({
         where: { id: payload.userId },

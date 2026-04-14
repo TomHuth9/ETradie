@@ -12,6 +12,7 @@ function generateToken(user) {
     },
     process.env.JWT_SECRET,
     {
+      algorithm: 'HS256',
       expiresIn: '7d',
     }
   );
