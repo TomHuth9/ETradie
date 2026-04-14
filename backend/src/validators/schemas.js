@@ -26,7 +26,9 @@ const jobStatusEnum = z.enum([
   'CLOSED',
 ]);
 
-const passwordSchema = z.string().min(8, 'At least 8 characters')
+// bcrypt silently truncates input at 72 bytes, so passwords longer than that
+// give no extra security and make hashing expensive — cap at 72 characters.
+const passwordSchema = z.string().min(8, 'At least 8 characters').max(72, 'Password is too long')
   .regex(/[A-Z]/, 'At least one uppercase letter')
   .regex(/[a-z]/, 'At least one lowercase letter')
   .regex(/[0-9]/, 'At least one number');
@@ -59,7 +61,7 @@ exports.loginSchema = z.object({
       .max(254, 'Email is too long')
       .trim()
       .toLowerCase(),
-    password: z.string().min(1, 'Password is required'),
+    password: z.string().min(1, 'Password is required').max(72, 'Password is too long'),
   }),
 });
 
@@ -95,7 +97,7 @@ exports.updateProfileSchema = z.object({
     townOrCity: z.string().max(255).trim().optional(),
     availability: z.boolean().optional(),
     workingHours: z.string().max(255, 'Working hours is too long').trim().optional(),
-    categories: z.array(tradeCategoryEnum).optional(),
+    categories: z.array(tradeCategoryEnum).max(15, 'Too many categories').optional(),
   }),
 });
 
@@ -125,7 +127,7 @@ exports.submitReviewSchema = z.object({
   params: z.object({ id: z.string().regex(/^\d+$/).transform(Number) }),
   body: z.object({
     rating: z.number().int().min(1).max(5),
-    comment: z.string().max(4000, 'Comment is too long').trim().optional(),
+    comment: z.string().min(1, 'Comment cannot be blank').max(4000, 'Comment is too long').trim().optional(),
   }),
 });
 
@@ -152,11 +154,13 @@ exports.getMyJobsSchema = z.object({
       .string()
       .regex(/^\d+$/)
       .transform((v) => Number(v))
+      .pipe(z.number().int().min(1))
       .optional(),
     limit: z
       .string()
       .regex(/^\d+$/)
       .transform((v) => Number(v))
+      .pipe(z.number().int().min(1).max(100))
       .optional(),
     status: jobStatusEnum.optional(),
     category: tradeCategoryEnum.optional(),

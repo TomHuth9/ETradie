@@ -10,10 +10,17 @@ const tradeRoutes = require('./routes/tradeRoutes');
 const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const errorHandler = require('./middleware/errorHandler');
+const { sanitize } = require('./middleware/sanitize');
 
 const app = express();
 
-app.use(express.json());
+// Reject bodies larger than 50 KB to prevent payload-based DoS.
+app.use(express.json({ limit: '50kb' }));
+app.use(express.urlencoded({ extended: false, limit: '50kb' }));
+
+// Strip HTML tags, null bytes, and control characters from all string inputs
+// before any route or validation middleware sees them.
+app.use(sanitize);
 
 // Rate limiting: auth 5 attempts per 15 mins per IP, general API 100/min per IP
 const authLimiter = rateLimit({
