@@ -1,106 +1,115 @@
 # ETradie
 
-ETradie is a web app that connects homeowners with local tradespeople in real time — like “Uber for tradespeople”. Homeowners post jobs; nearby tradespeople see them live and can accept or decline.
+ETradie is a web application that connects homeowners with local tradespeople in real time - like “Uber for tradespeople”. Homeowners post job requests with a trade category and location; jobs are geocoded and broadcast to nearby tradespeople, who can accept or decline from a live dashboard. Once a job is accepted, both parties can exchange messages on the job, and after completion they can leave reviews and view public profiles with ratings, working hours, and availability. The platform supports two roles - homeowner and tradesperson, with JWT-protected routes and role-appropriate screens throughout.
 
-## Tech stack
+The backend is built with Node.js and Express, using PostgreSQL with Prisma for data persistence and JWT for stateless authentication (bcrypt password hashing). Real-time updates use Socket.IO for new jobs, chat messages, and in-app notifications. Security is enforced through Zod request validation, express-rate-limit on auth and API routes, and CORS configuration. Geocoding uses Nominatim (OpenStreetMap) for addresses and towns. The React 18 frontend uses Vite, React Router, Axios, react-hot-toast, and a Socket.IO client with auth. The backend includes Jest tests (validators, Haversine distance, and Supertest API flows); the frontend uses Vitest and React Testing Library for selected pages.
 
-- **Backend:** Node.js, Express, Socket.IO, PostgreSQL, Prisma, JWT
-- **Frontend:** React (Vite), React Router, Axios, Socket.IO client
-- **Auth:** JWT; optional forgot-password flow (dev: reset token in API response)
+---
+
+## Stack
+
+| Layer    | Technology                                      |
+|----------|-------------------------------------------------|
+| Frontend | React 18, Vite, React Router, Axios, Socket.IO client |
+| Backend  | Node.js, Express 4, Socket.IO                 |
+| Database | PostgreSQL via Prisma ORM                       |
+| Auth     | JWT (jsonwebtoken + bcryptjs)                   |
+
+---
 
 ## Prerequisites
 
 - Node.js 18+
-- PostgreSQL
-- (Optional) nvm for Node version management
+- PostgreSQL running locally or a hosted instance (connection string for `DATABASE_URL`)
 
-## Setup
+---
 
-### 1. Database
+## Quick Start
 
-Create a PostgreSQL database (e.g. `db_etradie`) and note the connection URL.
+### 1. Clone and install
 
-### 2. Backend
+```bash
+git clone <repo-url>
+cd ETradie
+cd backend && npm install
+cd ../frontend && npm install
+```
+
+### 2. Configure environment
+
+Backend — copy and edit:
 
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env: set DATABASE_URL, JWT_SECRET, PORT, CLIENT_URL, GEOCODE_USER_AGENT
-npm install
-npx prisma migrate deploy
-npx prisma db seed
-npm run dev
 ```
 
-Backend runs at `http://localhost:4000` by default.
+Edit `backend/.env` (minimum):
 
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
+```
+DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/db_etradie
+JWT_SECRET=change_me_to_something_random
+PORT=4000
+CLIENT_URL=http://localhost:5173
 ```
 
-Frontend runs at `http://localhost:5173` by default. Set `VITE_API_URL` and `VITE_SOCKET_URL` if your API/Socket server is elsewhere.
+Frontend (optional — defaults assume API on port 4000):
 
-## Environment variables
+```
+VITE_API_URL=http://localhost:4000
+VITE_SOCKET_URL=http://localhost:4000
+```
 
-**Backend (`.env`):**
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret for signing JWTs |
-| `PORT` | Server port (default 4000) |
-| `CLIENT_URL` | Allowed CORS origin (e.g. http://localhost:5173) |
-| `GEOCODE_USER_AGENT` | User-Agent for Nominatim (OpenStreetMap) geocoding |
-
-**Frontend (optional):**
-
-- `VITE_API_URL` — API base URL (default http://localhost:4000)
-- `VITE_SOCKET_URL` — Socket.IO server URL (default same as API)
-
-## Seed accounts
-
-After `npx prisma db seed`:
-
-- **Homeowner:** `homeowner@example.com` / `Password123!`
-- **Tradesperson:** `tradesperson@example.com` / `Password123!`
-
-## Features
-
-- **Homeowners:** Register, post jobs (title, description, category, location), view “Your jobs” with filters and pagination, cancel/close/complete jobs, message accepted tradesperson, leave reviews.
-- **Tradespeople:** Register (town/city, trade categories, availability), see nearby pending jobs in real time and on load, filter by category, accept/decline, message homeowner, complete job, get reviewed.
-- **Profile:** Edit name, address/town, (tradesperson) availability and categories; change password. Forgot password (dev: token in response; production: wire up email).
-- **Discovery:** Public tradesperson profile page (name, town, rating, categories, availability).
-- **Real time:** New jobs broadcast to nearby tradespeople; new messages pushed to both participants.
-- **API:** Request validation (Zod), rate limiting on auth and API routes.
-
-## API overview
-
-- `POST /auth/register`, `POST /auth/login`, `GET /auth/me`, `PATCH /auth/profile`, `POST /auth/change-password`, `POST /auth/forgot-password`, `POST /auth/reset-password`
-- `GET /trades/categories`
-- `POST /jobs`, `GET /jobs/my`, `GET /jobs/nearby`, `GET /jobs/:id`, `POST /jobs/:id/respond`, `POST /jobs/:id/cancel`, `POST /jobs/:id/close`, `POST /jobs/:id/complete`
-- `GET /jobs/:id/messages`, `POST /jobs/:id/messages`
-- `GET /jobs/:id/reviews`, `POST /jobs/:id/reviews`
-- `GET /users/:id/profile`, `GET /users/:id/rating`
-
-## Migrations
-
-Run new migrations with:
+### 3. Database migrate and seed
 
 ```bash
 cd backend
 npx prisma migrate dev
+npx prisma db seed
 ```
 
-Commit the new migration files under `prisma/migrations/`.
+This creates schema and seeds demo accounts:
 
-## Deploying on Render
+| Email                     | Password      | Role         |
+|---------------------------|---------------|--------------|
+| homeowner@example.com     | Password123!  | homeowner    |
+| tradesperson@example.com  | Password123!  | tradesperson |
 
-See **[DEPLOY.md](./DEPLOY.md)** for step-by-step instructions to deploy the backend, frontend, and PostgreSQL on [Render](https://render.com). The repo includes a `render.yaml` blueprint you can use.
+### 4. Run in development
+
+Open two terminals:
+
+```bash
+# Terminal 1 — API + Socket.IO (http://localhost:4000)
+cd backend
+npm run dev
+```
+
+```bash
+# Terminal 2 — Vite dev server (http://localhost:5173)
+cd frontend
+npm run dev
+```
+
+### 5. Tests
+
+```bash
+cd backend
+set NODE_ENV=test
+npm test
+```
+
+```bash
+cd frontend
+npm test
+```
+
+---
+
+## Deploying
+
+See [DEPLOY.md](./DEPLOY.md) for deploying the API, static frontend, and PostgreSQL (e.g. Render). The repo may include a `render.yaml` blueprint.
+
+---
 
 ## License
-
-MIT

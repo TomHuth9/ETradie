@@ -15,11 +15,11 @@ const app = express();
 
 app.use(express.json());
 
-// Rate limiting: auth 10/min per IP, general API 100/min per IP
+// Rate limiting: auth 5 attempts per 15 mins per IP, general API 100/min per IP
 const authLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  message: { message: 'Too many attempts; try again later.' },
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { message: 'Too many attempts; try again in 15 minutes.' },
 });
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -28,6 +28,7 @@ const apiLimiter = rateLimit({
 });
 app.use('/auth', authLimiter);
 app.use('/jobs', apiLimiter);
+app.use('/trades', apiLimiter);
 app.use('/users', apiLimiter);
 app.use('/notifications', apiLimiter);
 
