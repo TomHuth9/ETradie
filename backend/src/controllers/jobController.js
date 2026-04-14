@@ -69,6 +69,9 @@ const acceptedTradespersonInclude = {
 };
 
 // GET /jobs/:id
+// Access control:
+//   HOMEOWNER  — only their own job.
+//   TRADESPERSON — PENDING jobs (reachable via nearby feed) or jobs they have responded to.
 async function getJobById(req, res, next) {
   try {
     const id = Number(req.params.id);
@@ -88,6 +91,25 @@ async function getJobById(req, res, next) {
 
     if (!job) {
       return res.status(404).json({ message: 'Job not found' });
+    }
+
+    if (req.user.role === 'HOMEOWNER') {
+      if (job.homeownerId !== req.user.id) {
+        return res.status(403).json({ message: 'Not authorised' });
+      }
+    } else if (req.user.role === 'TRADESPERSON') {
+      // Allow access to PENDING jobs (they appear in the nearby feed) and to
+      // any job this tradesperson has already responded to.
+      if (job.status !== 'PENDING') {
+        const response = await prisma.jobResponse.findUnique({
+          where: {
+            jobId_tradespersonId: { jobId: id, tradespersonId: req.user.id },
+          },
+        });
+        if (!response) {
+          return res.status(403).json({ message: 'Not authorised' });
+        }
+      }
     }
 
     const acceptedTradespersonId = job.responses?.[0]?.tradesperson?.id;
