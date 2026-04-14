@@ -158,40 +158,45 @@ async function respondToJob(req, res, next) {
       return res.status(404).json({ message: 'Job not found' });
     }
 
-    const prismaResponse = r;
-
-    const jobResponse = await prisma.jobResponse.upsert({
-      where: {
-        jobId_tradespersonId: {
-          jobId: id,
-          tradespersonId: req.user.id,
-        },
-      },
-      update: {
-        response: prismaResponse,
-      },
-      create: {
-        jobId: id,
-        tradespersonId: req.user.id,
-        response: prismaResponse,
-      },
-    });
-
-    // If accepted, mark the job itself as ACCEPTED and notify the homeowner.
-    if (prismaResponse === 'ACCEPTED' && job.status === 'PENDING') {
-      await prisma.job.update({
-        where: { id },
-        data: { status: 'ACCEPTED' },
+    // DECLINED: record the response with no job status change needed.
+    if (r === 'DECLINED') {
+      const jobResponse = await prisma.jobResponse.upsert({
+        where: { jobId_tradespersonId: { jobId: id, tradespersonId: req.user.id } },
+        update: { response: 'DECLINED' },
+        create: { jobId: id, tradespersonId: req.user.id, response: 'DECLINED' },
       });
-      await createNotification(req, {
-        userId: job.homeownerId,
-        type: 'job_accepted',
-        message: `Your job \"${job.title}\" was accepted`,
-        link: `/jobs/${id}`,
-      });
+      return res.json(jobResponse);
     }
 
-    res.json(jobResponse);
+    // ACCEPTED: atomically transition PENDING → ACCEPTED in a single UPDATE statement.
+    // Using updateMany with a WHERE status = 'PENDING' condition means only one
+    // concurrent request can ever match — the database enforces this without a
+    // separate read, eliminating the TOCTOU race condition.
+    const updated = await prisma.job.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: 'ACCEPTED' },
+    });
+
+    if (updated.count === 0) {
+      // Either another tradesperson won the race or the job is not in a PENDING state.
+      return res.status(409).json({ message: 'Job is no longer available' });
+    }
+
+    // We won the race — record the acceptance and notify the homeowner.
+    const jobResponse = await prisma.jobResponse.upsert({
+      where: { jobId_tradespersonId: { jobId: id, tradespersonId: req.user.id } },
+      update: { response: 'ACCEPTED' },
+      create: { jobId: id, tradespersonId: req.user.id, response: 'ACCEPTED' },
+    });
+
+    await createNotification(req, {
+      userId: job.homeownerId,
+      type: 'job_accepted',
+      message: `Your job \"${job.title}\" was accepted`,
+      link: `/jobs/${id}`,
+    });
+
+    return res.json(jobResponse);
   } catch (err) {
     next(err);
   }
