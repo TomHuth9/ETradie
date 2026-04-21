@@ -3,11 +3,10 @@ import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import JobCard from '../components/JobCard';
-import { formatJobDate, getStatusBadgeClass } from '../utils/format';
+import { formatJobDate } from '../utils/format';
 
 export default function TradespersonDashboard() {
-  const { socket, isSocketConnected } = useAuth();
-  const connectionLabel = !socket ? 'Connecting…' : isSocketConnected ? 'Live — receiving job requests' : 'Reconnecting…';
+  const { user, socket, isSocketConnected } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -15,94 +14,62 @@ export default function TradespersonDashboard() {
   const [error, setError] = useState('');
   const [historyJobs, setHistoryJobs] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState('');
   const [nearbyLoading, setNearbyLoading] = useState(true);
 
+  const connectionLabel = !socket
+    ? 'Connecting…'
+    : isSocketConnected
+    ? 'Live - receiving job requests'
+    : 'Reconnecting…';
+
   const categoryMap = useMemo(
-    () =>
-      categories.reduce((acc, cat) => {
-        acc[cat.id] = cat.label;
-        return acc;
-      }, {}),
+    () => categories.reduce((acc, cat) => { acc[cat.id] = cat.label; return acc; }, {}),
     [categories]
   );
 
-  const filteredJobs = useMemo(() => {
-    if (!categoryFilter) return jobs;
-    return jobs.filter((j) => j.category === categoryFilter);
-  }, [jobs, categoryFilter]);
+  const filteredJobs = useMemo(
+    () => categoryFilter ? jobs.filter(j => j.category === categoryFilter) : jobs,
+    [jobs, categoryFilter]
+  );
 
   useEffect(() => {
-    async function loadCategories() {
-      try {
-        const res = await api.get('/trades/categories');
-        setCategories(res.data);
-      } catch (err) {
-        console.error('Failed to load categories', err);
-      }
-    }
-
-    loadCategories();
+    api.get('/trades/categories').then(res => setCategories(res.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
-    async function loadHistory() {
-      setHistoryLoading(true);
-      setHistoryError('');
-      try {
-        const res = await api.get('/jobs/my');
-        const data = res.data;
-        setHistoryJobs(Array.isArray(data.jobs) ? data.jobs : (Array.isArray(data) ? data : []));
-      } catch (err) {
-        setHistoryError(
-          err.response?.data?.message ||
-            'Could not load your recent jobs right now.'
-        );
-      } finally {
-        setHistoryLoading(false);
-      }
-    }
-
-    loadHistory();
+    let cancelled = false;
+    setHistoryLoading(true);
+    api.get('/jobs/my')
+      .then(res => { if (!cancelled) { const d = res.data; setHistoryJobs(Array.isArray(d.jobs) ? d.jobs : (Array.isArray(d) ? d : [])); }})
+      .catch(err => { if (!cancelled) console.error(err); })
+      .finally(() => { if (!cancelled) setHistoryLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
-  // Load nearby pending jobs on mount so tradesperson sees jobs even if they missed the socket broadcast.
   useEffect(() => {
-    async function loadNearby() {
-      setNearbyLoading(true);
-      try {
-        const res = await api.get('/jobs/nearby');
-        setJobs((prev) => {
-          const byId = new Map(prev.map((j) => [j.id, j]));
-          res.data.forEach((j) => byId.set(j.id, j));
+    let cancelled = false;
+    setNearbyLoading(true);
+    api.get('/jobs/nearby')
+      .then(res => {
+        if (cancelled) return;
+        setJobs(prev => {
+          const byId = new Map(prev.map(j => [j.id, j]));
+          res.data.forEach(j => byId.set(j.id, j));
           return [...byId.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         });
-      } catch (err) {
-        console.error('Failed to load nearby jobs', err);
-      } finally {
-        setNearbyLoading(false);
-      }
-    }
-
-    loadNearby();
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setNearbyLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (!socket) return;
-
     function handleNewJob(job) {
-      setJobs((prev) => {
-        const exists = prev.some((j) => j.id === job.id);
-        if (exists) return prev;
-        return [job, ...prev];
-      });
+      setJobs(prev => prev.some(j => j.id === job.id) ? prev : [job, ...prev]);
     }
-
     socket.on('job:new', handleNewJob);
-
-    return () => {
-      socket.off('job:new', handleNewJob);
-    };
+    return () => socket.off('job:new', handleNewJob);
   }, [socket]);
 
   async function respond(jobId, response) {
@@ -110,19 +77,12 @@ export default function TradespersonDashboard() {
     setError('');
     try {
       await api.post(`/jobs/${jobId}/respond`, { response });
-      setJobs((prev) => prev.filter((j) => j.id !== jobId));
-      try {
-        const res = await api.get('/jobs/my');
-        const data = res.data;
-        setHistoryJobs(Array.isArray(data.jobs) ? data.jobs : (Array.isArray(data) ? data : []));
-      } catch {
-        // ignore
-      }
+      setJobs(prev => prev.filter(j => j.id !== jobId));
+      const res = await api.get('/jobs/my');
+      const d = res.data;
+      setHistoryJobs(Array.isArray(d.jobs) ? d.jobs : (Array.isArray(d) ? d : []));
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          'Failed to send response. Please try again.'
-      );
+      setError(err.response?.data?.message || 'Failed to send response.');
     } finally {
       setBusyJobId(null);
     }
@@ -130,56 +90,66 @@ export default function TradespersonDashboard() {
 
   return (
     <div>
-      <div className="page-header">
-        <h2>Tradesperson dashboard</h2>
-        <p className="page-subtitle">
-          When homeowners near you post new jobs, they will appear here in real time.
-        </p>
+      <div className="dashboard-welcome">
+        <div>
+          <h2>Good to see you{user?.name ? `, ${user.name.split(' ')[0]}` : ''} 👋</h2>
+          <p className="page-subtitle">New jobs near you will appear here in real time.</p>
+        </div>
+        <div className={`connection-status${isSocketConnected ? ' connected' : ' disconnected'}`}>
+          <span className="connection-status-dot" />
+          {connectionLabel}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: '2rem' }}>
+        {[
+          { icon: '📬', value: filteredJobs.length, label: 'New requests' },
+          { icon: '✅', value: historyJobs.filter(j => j.status === 'COMPLETED').length, label: 'Completed' },
+          { icon: '⭐', value: user?.averageRating ?? '-', label: 'Your rating' },
+        ].map((s, i) => (
+          <div key={i} className="card" style={{ textAlign: 'center', padding: 20 }}>
+            <div style={{ fontSize: '1.5rem', marginBottom: 8 }}>{s.icon}</div>
+            <div className="stat-n">{s.value}</div>
+            <div className="stat-label">{s.label}</div>
+          </div>
+        ))}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      <div className={`connection-status ${isSocketConnected ? 'connected' : 'disconnected'}`} style={{ marginBottom: '1rem' }}>
-        <span className="connection-status-dot" />
-        {connectionLabel}
-      </div>
-
       <section className="section">
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-          <h3 className="section-title" style={{ marginBottom: 0 }}>New job requests</h3>
+        <div className="section-header">
+          <h3 className="section-title">New job requests</h3>
           {categories.length > 0 && (
-            <select
-              className="form-select"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              style={{ width: 'auto', minWidth: '180px' }}
-            >
+            <select className="form-select" value={categoryFilter}
+              onChange={e => setCategoryFilter(e.target.value)}
+              style={{ width: 'auto', minWidth: 180 }}>
               <option value="">All categories</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.label}</option>
-              ))}
+              {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
             </select>
           )}
         </div>
-        {nearbyLoading && jobs.length === 0 && (
-          <p className="page-subtitle">Loading nearby jobs…</p>
-        )}
+
+        {nearbyLoading && jobs.length === 0 && <p className="page-subtitle">Loading nearby jobs…</p>}
+
         {!nearbyLoading && filteredJobs.length === 0 && (
           <div className="empty-state">
-            {jobs.length === 0
-              ? 'No new jobs yet. Keep this page open to receive real-time requests.'
-              : `No jobs in this category. ${categoryFilter ? 'Try "All categories".' : ''}`}
+            <div className="empty-state-icon">📡</div>
+            <div className="empty-state-title">Waiting for nearby jobs…</div>
+            <div className="empty-state-body">
+              {jobs.length === 0
+                ? 'Keep this page open to receive real-time requests.'
+                : 'No jobs in this category. Try "All categories".'}
+            </div>
           </div>
         )}
+
         {filteredJobs.length > 0 && (
           <div className="job-list">
-            {filteredJobs.map((job) => (
+            {filteredJobs.map(job => (
               <JobCard
                 key={job.id}
-                job={{
-                  ...job,
-                  categoryLabel: categoryMap[job.category],
-                }}
+                job={{ ...job, categoryLabel: categoryMap[job.category] }}
                 accepting={busyJobId === job.id}
                 declining={busyJobId === job.id}
                 onAccept={() => respond(job.id, 'ACCEPTED')}
@@ -192,31 +162,33 @@ export default function TradespersonDashboard() {
       </section>
 
       <section className="section">
-        <h3 className="section-title">Your recent jobs</h3>
-        {historyLoading && (
-          <p className="page-subtitle">Loading your recent jobs…</p>
-        )}
-        {historyError && (
-          <p className="alert alert-error">{historyError}</p>
-        )}
-        {!historyLoading && !historyError && historyJobs.length === 0 && (
+        <h3 className="section-title" style={{ marginBottom: '1rem' }}>Your recent jobs</h3>
+
+        {historyLoading && <p className="page-subtitle">Loading your recent jobs…</p>}
+
+        {!historyLoading && historyJobs.length === 0 && (
           <div className="empty-state">
-            You have not responded to any jobs yet.
+            <div className="empty-state-icon">📂</div>
+            <div className="empty-state-title">No jobs yet</div>
+            <div className="empty-state-body">Jobs you accept will appear here.</div>
           </div>
         )}
-        {!historyLoading && !historyError && historyJobs.length > 0 && (
+
+        {historyJobs.length > 0 && (
           <div className="job-list">
-            {historyJobs.map((job) => (
+            {historyJobs.map(job => (
               <Link key={job.id} to={`/jobs/${job.id}`} className="card-link">
-                <div className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                    <strong className="card-title">{job.title}</strong>
-                    <span className={`badge ${getStatusBadgeClass(job.status)}`}>
-                      {job.status}
-                    </span>
+                <div className="job-card">
+                  <div className="job-card-header">
+                    <div>
+                      <div className="job-card-title">{job.title}</div>
+                      <div className="job-card-meta">
+                        <span>📍 {job.locationText}</span>
+                        <span>{formatJobDate(job.createdAt)}</span>
+                      </div>
+                    </div>
+                    <span className={`badge badge-${job.status.toLowerCase()}`}>{job.status}</span>
                   </div>
-                  <div className="card-meta">{job.locationText}</div>
-                  <div className="card-meta">{formatJobDate(job.createdAt)}</div>
                 </div>
               </Link>
             ))}
