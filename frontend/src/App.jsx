@@ -155,7 +155,7 @@ export default function App() {
                   Live in your area
                 </div>
                 <h1 style={{ fontSize: '2.75rem', lineHeight: 1.15, marginBottom: 18, letterSpacing: '-0.5px' }}>
-                  Find a trusted tradesperson<span style={{ color: 'var(--color-cta)' }}>in minutes.</span>
+                  Find a trusted tradesperson <span style={{ color: 'var(--color-cta)' }}>in minutes.</span>
                 </h1>
                 <p className="page-subtitle" style={{ fontSize: '1.0625rem', maxWidth: '38ch', marginBottom: 32 }}>
                   Post your job, get matched with local tradespeople nearby, and get it done.
