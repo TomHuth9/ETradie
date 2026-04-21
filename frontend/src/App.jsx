@@ -96,7 +96,7 @@ function Layout({ children }) {
                 <path d="M9 2L2 8h2v8h4v-5h2v5h4V8h2L9 2z" fill="white"/>
               </svg>
             </span>
-            etradie
+            ETradie
           </Link>
 
           <nav className="nav">
