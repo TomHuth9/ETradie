@@ -9,6 +9,7 @@ import TradespersonDashboard from './pages/TradespersonDashboard';
 import JobDetail from './pages/JobDetail';
 import Profile from './pages/Profile';
 import TradespersonProfile from './pages/TradespersonProfile';
+import AdminDashboard from './pages/AdminDashboard';
 import Footer from './components/Footer';
 import { useAuth } from './contexts/AuthContext';
 import { useNotifications } from './contexts/NotificationsContext';
@@ -114,6 +115,9 @@ function Layout({ children }) {
                 {user.role === 'TRADESPERSON' && (
                   <Link to="/tradesperson-dashboard" className={`nav-link${location.pathname === '/tradesperson-dashboard' ? ' active' : ''}`}>Jobs</Link>
                 )}
+                {user.role === 'ADMIN' && (
+                  <Link to="/admin" className={`nav-link${location.pathname.startsWith('/admin') ? ' active' : ''}`}>Admin</Link>
+                )}
                 <NotificationsDropdown
                   notifications={notifications}
                   unreadCount={unreadCount}
@@ -146,7 +150,9 @@ export default function App() {
           user ? (
             user.role === 'HOMEOWNER'
               ? <Navigate to="/dashboard" replace />
-              : <Navigate to="/tradesperson-dashboard" replace />
+              : user.role === 'ADMIN'
+                ? <Navigate to="/admin" replace />
+                : <Navigate to="/tradesperson-dashboard" replace />
           ) : (
             <div className="hero">
               <div>
@@ -181,6 +187,7 @@ export default function App() {
         <Route path="/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['HOMEOWNER']}><HomeownerDashboard /></ProtectedRoute>} />
         <Route path="/tradesperson-dashboard" element={<ProtectedRoute allowedRoles={['TRADESPERSON']}><TradespersonDashboard /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
       </Routes>
     </Layout>
   );
