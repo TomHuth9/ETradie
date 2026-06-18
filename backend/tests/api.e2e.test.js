@@ -87,6 +87,63 @@ describe('E2E: auth and basic homeowner flow', () => {
   });
 });
 
+describe('E2E: admin endpoints', () => {
+  const homeownerEmail = `test-hw-admin-${Date.now()}@example.com`;
+  const adminEmail = `test-admin-${Date.now()}@example.com`;
+  const password = 'Password123';
+  let homeownerToken;
+  let adminToken;
+
+  beforeAll(async () => {
+    const hwRes = await request(app)
+      .post('/auth/register')
+      .send({ name: 'Test HW', email: homeownerEmail, password, role: 'homeowner', address: '10 High Street, Glasgow' });
+    homeownerToken = hwRes.body.token;
+
+    await request(app)
+      .post('/auth/register')
+      .send({ name: 'Test Admin', email: adminEmail, password, role: 'homeowner', address: '10 High Street, Glasgow' });
+
+    await prisma.user.update({ where: { email: adminEmail }, data: { role: 'ADMIN' } });
+
+    const loginRes = await request(app)
+      .post('/auth/login')
+      .send({ email: adminEmail, password });
+    adminToken = loginRes.body.token;
+  });
+
+  afterAll(async () => {
+    try {
+      await prisma.user.deleteMany({ where: { email: { in: [homeownerEmail, adminEmail] } } });
+    } catch (_) {}
+  });
+
+  test('non-admin (homeowner) is rejected with 403 on admin endpoints', async () => {
+    const jobsRes = await request(app)
+      .get('/admin/jobs')
+      .set('Authorization', `Bearer ${homeownerToken}`);
+    expect(jobsRes.status).toBe(403);
+
+    const usersRes = await request(app)
+      .get('/admin/users')
+      .set('Authorization', `Bearer ${homeownerToken}`);
+    expect(usersRes.status).toBe(403);
+  });
+
+  test('admin /users response excludes sensitive fields', async () => {
+    const res = await request(app)
+      .get('/admin/users')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.users)).toBe(true);
+    for (const user of res.body.users) {
+      expect(user).not.toHaveProperty('passwordHash');
+      expect(user).not.toHaveProperty('passwordResetToken');
+    }
+  });
+});
+
 describe('E2E: tradesperson sees nearby job', () => {
   const homeownerEmail = `test-homeowner-${Date.now()}@example.com`;
   const tradespersonEmail = `test-tradesperson-${Date.now()}@example.com`;
