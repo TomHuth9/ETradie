@@ -113,6 +113,10 @@ model Job {
   responses   JobResponse[]
   messages    Message[]
   reviews     Review[]
+
+  @@index([homeownerId, status])
+  @@index([status])
+  @@index([category, status])
 }
 
 model JobResponse {
@@ -127,6 +131,7 @@ model JobResponse {
   respondedAt   DateTime          @default(now())
 
   @@unique([jobId, tradespersonId])
+  @@index([tradespersonId])
 }
 
 model Message {
@@ -137,6 +142,8 @@ model Message {
   senderId  Int
   content   String
   createdAt DateTime @default(now())
+
+  @@index([jobId])
 }
 
 model Review {
@@ -152,6 +159,7 @@ model Review {
   createdAt  DateTime @default(now())
 
   @@unique([jobId, reviewerId])
+  @@index([revieweeId])
 }
 
 model Notification {
@@ -163,5 +171,7 @@ model Notification {
   link      String?
   readAt    DateTime?
   createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
 }
 
