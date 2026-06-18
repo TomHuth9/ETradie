@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../prismaClient');
 const { geocodeToLatLng } = require('../services/geocodingService');
 const { validatePassword } = require('./authController');
+const { sendPasswordResetEmail } = require('../services/emailService');
 
 function serializeUser(user) {
   const categories = Array.isArray(user.tradespersonCategories)
@@ -166,7 +167,11 @@ async function forgotPassword(req, res, next) {
     if (process.env.NODE_ENV !== 'production') {
       return res.json({ message: 'Reset token (dev only)', resetToken: token, expiresAt });
     }
-    // TODO: send email with link containing token
+    try {
+      await sendPasswordResetEmail(user.email, token);
+    } catch (emailErr) {
+      console.error('Password reset email failed:', emailErr?.response?.body ?? emailErr.message);
+    }
     res.json({ message: 'If that email exists, we sent a reset link.' });
   } catch (err) {
     next(err);
