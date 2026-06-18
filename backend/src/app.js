@@ -9,6 +9,7 @@ const jobRoutes = require('./routes/jobRoutes');
 const tradeRoutes = require('./routes/tradeRoutes');
 const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const { sanitize } = require('./middleware/sanitize');
 
@@ -44,6 +45,7 @@ app.use('/jobs', apiLimiter);
 app.use('/trades', apiLimiter);
 app.use('/users', apiLimiter);
 app.use('/notifications', apiLimiter);
+app.use('/admin', apiLimiter);
 
 // Configure CORS so the React dev server can talk to this API.
 // CLIENT_URL is defined in .env; fall back to a sensible local default.
@@ -66,6 +68,7 @@ app.use('/jobs', jobRoutes);
 app.use('/trades', tradeRoutes);
 app.use('/users', userRoutes);
 app.use('/notifications', notificationRoutes);
+app.use('/admin', adminRoutes);
 
 // Central error handler to keep controllers cleaner.
 app.use(errorHandler);

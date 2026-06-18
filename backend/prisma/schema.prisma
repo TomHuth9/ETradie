@@ -33,6 +33,7 @@ enum TradeCategory {
 enum UserRole {
   HOMEOWNER
   TRADESPERSON
+  ADMIN
 }
 
 enum JobStatus {
