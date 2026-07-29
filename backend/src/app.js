@@ -25,10 +25,20 @@ app.use(express.urlencoded({ extended: false, limit: '50kb' }));
 // Strip HTML tags, null bytes, and control characters from all string inputs before any route or validation middleware sees them.
 app.use(sanitize);
 
-// Rate limiting: auth 5 attempts per 15 mins per IP, general API 100/min per IP
+// Rate limiting: auth 5 attempts per 15 mins per IP, onboarding 10/15min, general API 100/min per IP
+// Strict limiter for credential-guessing-sensitive endpoints only.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
+  message: { message: 'Too many attempts; try again in 15 minutes.' },
+  skip: () => process.env.NODE_ENV === 'test',
+});
+// Looser limiter for multi-step onboarding endpoints (register -> resend -> verify),
+// which aren't credential-guessing targets but a shared 5-request budget with login
+// meant a legitimate new user could get locked out mid-signup.
+const onboardingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: { message: 'Too many attempts; try again in 15 minutes.' },
   skip: () => process.env.NODE_ENV === 'test',
 });
@@ -39,11 +49,11 @@ const apiLimiter = rateLimit({
 });
 // Strict limiter only on credential-submission endpoints; /auth/me and profile management routes use the general limiter so repeated page loads don't 429.
 app.use('/auth/login', authLimiter);
-app.use('/auth/register', authLimiter);
-app.use('/auth/verify-email', authLimiter);
-app.use('/auth/resend-verification', authLimiter);
-app.use('/auth/forgot-password', authLimiter);
 app.use('/auth/reset-password', authLimiter);
+app.use('/auth/register', onboardingLimiter);
+app.use('/auth/verify-email', onboardingLimiter);
+app.use('/auth/resend-verification', onboardingLimiter);
+app.use('/auth/forgot-password', onboardingLimiter);
 app.use('/auth', apiLimiter);
 app.use('/jobs', apiLimiter);
 app.use('/trades', apiLimiter);
