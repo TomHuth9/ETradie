@@ -6,7 +6,10 @@
 const LIMITS = {
   name: 100,
   email: 254,
-  address: 255,
+  addressLine1: 255,
+  addressLine2: 255,
+  addressCity: 120,
+  addressPostcode: 20,
   townOrCity: 255,
   jobTitle: 140,
   jobDescription: 4000,
@@ -16,6 +19,7 @@ const LIMITS = {
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UK_POSTCODE_REGEX = /^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/;
 
 export function validateName(value) {
   const s = typeof value === 'string' ? value.trim() : '';
@@ -42,10 +46,30 @@ export function validatePassword(value) {
   return null;
 }
 
-export function validateAddress(value, required = true) {
+export function validateAddressLine1(value, required = true) {
   const s = typeof value === 'string' ? value.trim() : '';
-  if (required && !s) return 'Address is required';
-  if (s && s.length > LIMITS.address) return `Address must be ${LIMITS.address} characters or fewer`;
+  if (required && !s) return 'Address line 1 is required';
+  if (s && s.length > LIMITS.addressLine1) return `Address must be ${LIMITS.addressLine1} characters or fewer`;
+  return null;
+}
+
+export function validateAddressLine2(value) {
+  const s = typeof value === 'string' ? value.trim() : '';
+  if (s && s.length > LIMITS.addressLine2) return `Address must be ${LIMITS.addressLine2} characters or fewer`;
+  return null;
+}
+
+export function validateAddressCity(value, required = true) {
+  const s = typeof value === 'string' ? value.trim() : '';
+  if (required && !s) return 'Town or city is required';
+  if (s && s.length > LIMITS.addressCity) return `Town/city must be ${LIMITS.addressCity} characters or fewer`;
+  return null;
+}
+
+export function validateAddressPostcode(value, required = true) {
+  const s = typeof value === 'string' ? value.trim() : '';
+  if (required && !s) return 'Postcode is required';
+  if (s && !UK_POSTCODE_REGEX.test(s)) return 'Enter a valid UK postcode';
   return null;
 }
 

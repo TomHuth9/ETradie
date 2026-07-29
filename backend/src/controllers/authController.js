@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const prisma = require('../prismaClient');
 const { geocodeToLatLng } = require('../services/geocodingService');
 const { sendVerificationEmail } = require('../services/emailService');
+const { formatAddress } = require('../utils/formatAddress');
 
 const VERIFICATION_CODE_TTL_MS = 15 * 60 * 1000;
 
@@ -47,7 +48,7 @@ function validatePassword(password) {
 // Registers either a homeowner or a tradesperson and geocodes their location.
 async function register(req, res, next) {
   try {
-    const { name, email, password, role, address, townOrCity } = req.body;
+    const { name, email, password, role, addressLine1, addressLine2, addressCity, addressPostcode, townOrCity } = req.body;
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'name, email, password and role are required' });
@@ -77,11 +78,13 @@ async function register(req, res, next) {
     let lng = null;
 
     if (prismaRole === 'HOMEOWNER') {
-      if (!address) {
-        return res.status(400).json({ message: 'address is required for homeowners' });
+      if (!addressLine1 || !addressCity || !addressPostcode) {
+        return res.status(400).json({ message: 'addressLine1, addressCity and addressPostcode are required for homeowners' });
       }
-      locationText = address;
-      const coords = await geocodeToLatLng(address);
+      // Geocode on line 1 + city + postcode only — a flat/unit number (line 2)
+      // doesn't affect building-level coordinates and can confuse the free-text
+      // geocoder when that exact unit isn't in its dataset.
+      const coords = await geocodeToLatLng(formatAddress({ addressLine1, addressCity, addressPostcode }));
       lat = coords.lat;
       lng = coords.lng;
     } else if (prismaRole === 'TRADESPERSON') {
@@ -103,7 +106,10 @@ async function register(req, res, next) {
         email,
         passwordHash,
         role: prismaRole,
-        address: prismaRole === 'HOMEOWNER' ? locationText : null,
+        addressLine1: prismaRole === 'HOMEOWNER' ? addressLine1.trim() : null,
+        addressLine2: prismaRole === 'HOMEOWNER' && addressLine2 ? addressLine2.trim() : null,
+        addressCity: prismaRole === 'HOMEOWNER' ? addressCity.trim() : null,
+        addressPostcode: prismaRole === 'HOMEOWNER' ? addressPostcode.trim() : null,
         townOrCity: prismaRole === 'TRADESPERSON' ? locationText : null,
         lat,
         lng,
@@ -166,7 +172,10 @@ async function login(req, res, next) {
         name: user.name,
         email: user.email,
         role: user.role,
-        address: user.address,
+        addressLine1: user.addressLine1,
+        addressLine2: user.addressLine2,
+        addressCity: user.addressCity,
+        addressPostcode: user.addressPostcode,
         townOrCity: user.townOrCity,
         lat: user.lat,
         lng: user.lng,
@@ -196,7 +205,10 @@ async function verifyEmail(req, res, next) {
           name: user.name,
           email: user.email,
           role: user.role,
-          address: user.address,
+          addressLine1: user.addressLine1,
+          addressLine2: user.addressLine2,
+          addressCity: user.addressCity,
+          addressPostcode: user.addressPostcode,
           townOrCity: user.townOrCity,
           lat: user.lat,
           lng: user.lng,
@@ -231,7 +243,10 @@ async function verifyEmail(req, res, next) {
         name: verifiedUser.name,
         email: verifiedUser.email,
         role: verifiedUser.role,
-        address: verifiedUser.address,
+        addressLine1: verifiedUser.addressLine1,
+        addressLine2: verifiedUser.addressLine2,
+        addressCity: verifiedUser.addressCity,
+        addressPostcode: verifiedUser.addressPostcode,
         townOrCity: verifiedUser.townOrCity,
         lat: verifiedUser.lat,
         lng: verifiedUser.lng,

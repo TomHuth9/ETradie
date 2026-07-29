@@ -3,7 +3,10 @@ import { useLocation } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { validateName, validateAddress, validateTownOrCity, validatePassword, getPasswordHint } from '../utils/validation';
+import {
+  validateName, validateAddressLine1, validateAddressLine2, validateAddressCity, validateAddressPostcode,
+  validateTownOrCity, validatePassword, getPasswordHint,
+} from '../utils/validation';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -11,7 +14,10 @@ export default function Profile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', address: '', townOrCity: '', availability: true, workingHours: '', categories: [] });
+  const [form, setForm] = useState({
+    name: '', addressLine1: '', addressLine2: '', addressCity: '', addressPostcode: '',
+    townOrCity: '', availability: true, workingHours: '', categories: [],
+  });
   const [categoriesList, setCategoriesList] = useState([]);
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordSaving, setPasswordSaving] = useState(false);
@@ -29,7 +35,10 @@ export default function Profile() {
         setProfile(res.data);
         setForm({
           name: res.data.name || '',
-          address: res.data.address || '',
+          addressLine1: res.data.addressLine1 || '',
+          addressLine2: res.data.addressLine2 || '',
+          addressCity: res.data.addressCity || '',
+          addressPostcode: res.data.addressPostcode || '',
           townOrCity: res.data.townOrCity || '',
           availability: res.data.availability !== false,
           workingHours: res.data.workingHours || '',
@@ -55,7 +64,10 @@ export default function Profile() {
     const { name, value } = e.target;
     let msg = null;
     if (name === 'name') msg = validateName(value);
-    else if (name === 'address') msg = validateAddress(value, false);
+    else if (name === 'addressLine1') msg = validateAddressLine1(value, false);
+    else if (name === 'addressLine2') msg = validateAddressLine2(value);
+    else if (name === 'addressCity') msg = validateAddressCity(value, false);
+    else if (name === 'addressPostcode') msg = validateAddressPostcode(value, false);
     else if (name === 'townOrCity') msg = validateTownOrCity(value, false);
     setProfileErrors(p => msg != null ? { ...p, [name]: msg } : { ...p, [name]: null });
   }
@@ -71,7 +83,12 @@ export default function Profile() {
     e.preventDefault();
     const errs = {};
     const n = validateName(form.name); if (n) errs.name = n;
-    if (!isTrade) { const a = validateAddress(form.address, false); if (a) errs.address = a; }
+    if (!isTrade) {
+      const l1 = validateAddressLine1(form.addressLine1, false); if (l1) errs.addressLine1 = l1;
+      const l2 = validateAddressLine2(form.addressLine2); if (l2) errs.addressLine2 = l2;
+      const c = validateAddressCity(form.addressCity, false); if (c) errs.addressCity = c;
+      const p = validateAddressPostcode(form.addressPostcode, false); if (p) errs.addressPostcode = p;
+    }
     if (isTrade)  { const t = validateTownOrCity(form.townOrCity, false); if (t) errs.townOrCity = t; }
     setProfileErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -79,7 +96,12 @@ export default function Profile() {
     try {
       await api.patch('/auth/profile', {
         name: form.name,
-        ...(!isTrade && { address: form.address }),
+        ...(!isTrade && {
+          addressLine1: form.addressLine1,
+          addressLine2: form.addressLine2,
+          addressCity: form.addressCity,
+          addressPostcode: form.addressPostcode,
+        }),
         ...(isTrade && { townOrCity: form.townOrCity, availability: form.availability, workingHours: form.workingHours, categories: form.categories }),
       });
       const res = await api.get('/auth/me');
@@ -142,15 +164,43 @@ export default function Profile() {
             </div>
 
             {!isTrade && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="paddr">Address</label>
-                  <input id="paddr" name="address" type="text"
-                    className={`form-input${profileErrors.address ? ' form-input-error' : ''}`}
-                    value={form.address} onChange={handleChange} onBlur={handleBlur} />
-                  {profileErrors.address && <span className="form-field-error">{profileErrors.address}</span>}
+              <>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="paddr1">Address line 1</label>
+                    <input id="paddr1" name="addressLine1" type="text"
+                      className={`form-input${profileErrors.addressLine1 ? ' form-input-error' : ''}`}
+                      value={form.addressLine1} onChange={handleChange} onBlur={handleBlur} />
+                    {profileErrors.addressLine1 && <span className="form-field-error">{profileErrors.addressLine1}</span>}
+                  </div>
                 </div>
-              </div>
+
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="paddr2">Address line 2 (optional)</label>
+                    <input id="paddr2" name="addressLine2" type="text"
+                      className={`form-input${profileErrors.addressLine2 ? ' form-input-error' : ''}`}
+                      value={form.addressLine2} onChange={handleChange} onBlur={handleBlur} />
+                    {profileErrors.addressLine2 && <span className="form-field-error">{profileErrors.addressLine2}</span>}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="paddrCity">Town / City</label>
+                  <input id="paddrCity" name="addressCity" type="text"
+                    className={`form-input${profileErrors.addressCity ? ' form-input-error' : ''}`}
+                    value={form.addressCity} onChange={handleChange} onBlur={handleBlur} />
+                  {profileErrors.addressCity && <span className="form-field-error">{profileErrors.addressCity}</span>}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="paddrPostcode">Postcode</label>
+                  <input id="paddrPostcode" name="addressPostcode" type="text"
+                    className={`form-input${profileErrors.addressPostcode ? ' form-input-error' : ''}`}
+                    value={form.addressPostcode} onChange={handleChange} onBlur={handleBlur} />
+                  {profileErrors.addressPostcode && <span className="form-field-error">{profileErrors.addressPostcode}</span>}
+                </div>
+              </>
             )}
 
             {isTrade && (

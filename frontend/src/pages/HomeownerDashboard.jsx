@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { formatJobDate } from '../utils/format';
+import { formatAddress } from '../utils/address';
 import { validateJobTitle, validateJobDescription, validateLocationText } from '../utils/validation';
 
 const CAT_COLORS = {
@@ -42,8 +43,11 @@ export default function HomeownerDashboard() {
   }, []);
 
   useEffect(() => {
-    if (user?.address) setForm(p => ({ ...p, locationText: p.locationText || user.address }));
-  }, [user?.address]);
+    if (user?.addressLine1) {
+      const formatted = formatAddress(user);
+      setForm(p => ({ ...p, locationText: p.locationText || formatted }));
+    }
+  }, [user?.addressLine1, user?.addressLine2, user?.addressCity, user?.addressPostcode]);
 
   useEffect(() => {
     let cancelled = false;

@@ -223,7 +223,7 @@ function UsersTab() {
                   <td style={{ padding: '10px 12px', fontWeight: 500 }}>{u.name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--color-text-muted)' }}>{u.email}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge value={u.role} map={ROLE_COLORS} /></td>
-                  <td style={{ padding: '10px 12px', color: 'var(--color-text-muted)' }}>{u.townOrCity || u.address || '—'}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--color-text-muted)' }}>{u.townOrCity || u.addressCity || '—'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
                     {new Date(u.createdAt).toLocaleDateString()}
                   </td>

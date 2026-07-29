@@ -5,6 +5,7 @@ const prisma = require('../prismaClient');
 const { geocodeToLatLng } = require('../services/geocodingService');
 const { validatePassword } = require('./authController');
 const { sendPasswordResetEmail } = require('../services/emailService');
+const { formatAddress } = require('../utils/formatAddress');
 
 function serializeUser(user) {
   const categories = Array.isArray(user.tradespersonCategories)
@@ -15,7 +16,10 @@ function serializeUser(user) {
     name: user.name,
     email: user.email,
     role: user.role,
-    address: user.address,
+    addressLine1: user.addressLine1,
+    addressLine2: user.addressLine2,
+    addressCity: user.addressCity,
+    addressPostcode: user.addressPostcode,
     townOrCity: user.townOrCity,
     lat: user.lat,
     lng: user.lng,
@@ -58,21 +62,34 @@ async function getMe(req, res, next) {
 // PATCH /auth/profile — update name, address/townOrCity (re-geocode), availability (tradesperson), categories (tradesperson).
 async function updateProfile(req, res, next) {
   try {
-    const { name, address, townOrCity, availability, workingHours, categories } = req.body;
+    const { name, addressLine1, addressLine2, addressCity, addressPostcode, townOrCity, availability, workingHours, categories } = req.body;
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const updates = {};
     if (name != null && String(name).trim()) updates.name = String(name).trim();
 
-    if (user.role === 'HOMEOWNER' && address != null) {
-      updates.address = String(address).trim();
-      try {
-        const coords = await geocodeToLatLng(updates.address);
-        updates.lat = coords.lat;
-        updates.lng = coords.lng;
-      } catch (_) {
-        // leave lat/lng unchanged on geocode failure
+    if (user.role === 'HOMEOWNER') {
+      if (addressLine1 != null && String(addressLine1).trim()) updates.addressLine1 = String(addressLine1).trim();
+      if (addressLine2 != null) updates.addressLine2 = String(addressLine2).trim() || null;
+      if (addressCity != null && String(addressCity).trim()) updates.addressCity = String(addressCity).trim();
+      if (addressPostcode != null && String(addressPostcode).trim()) updates.addressPostcode = String(addressPostcode).trim();
+
+      // Re-geocode only on line 1/city/postcode changes — line 2 (flat/unit) doesn't
+      // affect building-level coordinates and can confuse the free-text geocoder.
+      if (updates.addressLine1 || updates.addressCity || updates.addressPostcode) {
+        const merged = {
+          addressLine1: updates.addressLine1 ?? user.addressLine1,
+          addressCity: updates.addressCity ?? user.addressCity,
+          addressPostcode: updates.addressPostcode ?? user.addressPostcode,
+        };
+        try {
+          const coords = await geocodeToLatLng(formatAddress(merged));
+          updates.lat = coords.lat;
+          updates.lng = coords.lng;
+        } catch (_) {
+          // leave lat/lng unchanged on geocode failure
+        }
       }
     }
 

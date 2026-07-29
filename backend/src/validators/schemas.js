@@ -33,6 +33,9 @@ const passwordSchema = z.string().min(8, 'At least 8 characters').max(72, 'Passw
   .regex(/[a-z]/, 'At least one lowercase letter')
   .regex(/[0-9]/, 'At least one number');
 
+// UK postcode, e.g. "G2 1AL", "SW1A 1AA", "EC1A 1BB", "M1 1AE".
+const ukPostcodeRegex = /^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/;
+
 exports.registerSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required').max(100, 'Name is too long').trim(),
@@ -44,13 +47,23 @@ exports.registerSchema = z.object({
       .toLowerCase(),
     password: passwordSchema,
     role: z.enum(['homeowner', 'tradesperson']),
-    address: z.string().max(255, 'Address is too long').trim().optional(),
+    addressLine1: z.string().max(255, 'Address is too long').trim().optional(),
+    addressLine2: z.string().max(255, 'Address is too long').trim().optional(),
+    addressCity: z.string().max(120, 'Town/city is too long').trim().optional(),
+    addressPostcode: z
+      .string()
+      .max(20, 'Postcode is too long')
+      .trim()
+      .regex(ukPostcodeRegex, 'Enter a valid UK postcode')
+      .optional(),
     townOrCity: z.string().max(255, 'Town/city is too long').trim().optional(),
   }).refine((d) => {
-    if (d.role === 'homeowner') return !!d.address?.trim();
+    if (d.role === 'homeowner') {
+      return !!d.addressLine1?.trim() && !!d.addressCity?.trim() && !!d.addressPostcode?.trim();
+    }
     if (d.role === 'tradesperson') return !!d.townOrCity?.trim();
     return true;
-  }, { message: 'address required for homeowner, townOrCity for tradesperson' }),
+  }, { message: 'address line 1, city and postcode are required for homeowners; townOrCity for tradespeople' }),
 });
 
 exports.loginSchema = z.object({
@@ -116,7 +129,15 @@ exports.changePasswordSchema = z.object({
 exports.updateProfileSchema = z.object({
   body: z.object({
     name: z.string().min(1).max(100).trim().optional(),
-    address: z.string().max(255).trim().optional(),
+    addressLine1: z.string().max(255, 'Address is too long').trim().optional(),
+    addressLine2: z.string().max(255, 'Address is too long').trim().optional(),
+    addressCity: z.string().max(120, 'Town/city is too long').trim().optional(),
+    addressPostcode: z
+      .string()
+      .max(20, 'Postcode is too long')
+      .trim()
+      .regex(ukPostcodeRegex, 'Enter a valid UK postcode')
+      .optional(),
     townOrCity: z.string().max(255).trim().optional(),
     availability: z.boolean().optional(),
     workingHours: z.string().max(255, 'Working hours is too long').trim().optional(),
