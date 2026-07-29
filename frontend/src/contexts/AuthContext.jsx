@@ -131,6 +131,14 @@ export function AuthProvider({ children }) {
     applyAuth(newUser, newToken);
   }
 
+  // Changing your own password invalidates every previously-issued token
+  // (including the one this session is using), so the backend returns a
+  // fresh one — swap it in so the current session keeps working. This also
+  // reconnects the socket with the new token via the effect above.
+  function updateToken(newToken) {
+    setToken(newToken);
+  }
+
   function logout() {
     setUser(null);
     setToken(null);
@@ -147,6 +155,7 @@ export function AuthProvider({ children }) {
     login,
     verifyEmail,
     resendVerification,
+    updateToken,
     logout,
   };
 

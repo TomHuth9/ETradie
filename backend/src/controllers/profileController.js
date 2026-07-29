@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const prisma = require('../prismaClient');
 const { geocodeToLatLng } = require('../services/geocodingService');
-const { validatePassword } = require('./authController');
+const { validatePassword, generateToken } = require('./authController');
 const { sendPasswordResetEmail } = require('../services/emailService');
 const { formatAddress } = require('../utils/formatAddress');
 const { deleteUserAndAllData } = require('../services/userDeletionService');
@@ -154,11 +154,16 @@ async function changePassword(req, res, next) {
     if (!valid) return res.status(401).json({ message: 'Current password is incorrect' });
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
+    // Bumping tokenVersion invalidates every other token issued for this
+    // account (e.g. a stolen session on another device) — issue a fresh
+    // token below so the device making this request isn't logged out too.
+    const updated = await prisma.user.update({
       where: { id: req.user.id },
-      data: { passwordHash },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
     });
-    res.json({ message: 'Password updated' });
+
+    const token = generateToken(updated);
+    res.json({ message: 'Password updated', token });
   } catch (err) {
     next(err);
   }
@@ -238,9 +243,17 @@ async function resetPassword(req, res, next) {
     if (!user) return res.status(400).json({ message: 'Invalid or expired reset token' });
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
+    // No active session to preserve here (this endpoint isn't authenticated —
+    // it's reached via the emailed token), so just invalidate every existing
+    // token for the account; the user logs in fresh afterward as normal.
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash, passwordResetToken: null, passwordResetExpiresAt: null },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+        tokenVersion: { increment: 1 },
+      },
     });
     res.json({ message: 'Password reset successfully' });
   } catch (err) {

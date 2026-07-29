@@ -35,10 +35,13 @@ module.exports = function initSockets(server) {
           lat: true,
           lng: true,
           availability: true,
+          tokenVersion: true,
         },
       });
 
-      if (!user) {
+      // Same check as authMiddleware: a password change/reset bumps
+      // tokenVersion, invalidating tokens issued before it.
+      if (!user || user.tokenVersion !== payload.tokenVersion) {
         return next(new Error('User not found for socket connection'));
       }
 

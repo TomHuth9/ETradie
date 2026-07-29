@@ -12,12 +12,15 @@ function generateVerificationCode() {
   return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
 
-// Helper to generate a JWT for a user.
+// Helper to generate a JWT for a user. tokenVersion is embedded so a
+// password change/reset (which bumps it) invalidates every previously-issued
+// token for this account — see authMiddleware.
 function generateToken(user) {
   return jwt.sign(
     {
       userId: user.id,
       role: user.role,
+      tokenVersion: user.tokenVersion,
     },
     process.env.JWT_SECRET,
     {
@@ -298,5 +301,6 @@ module.exports = {
   verifyEmail,
   resendVerificationCode,
   validatePassword,
+  generateToken,
 };
 

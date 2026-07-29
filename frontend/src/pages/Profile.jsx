@@ -9,7 +9,7 @@ import {
 } from '../utils/validation';
 
 export default function Profile() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateToken } = useAuth();
   const location = useLocation();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -127,7 +127,10 @@ export default function Profile() {
     if (curErr || newErr || confErr) { setPasswordErrors({ currentPassword: curErr, newPassword: newErr, confirmPassword: confErr }); return; }
     setPasswordSaving(true);
     try {
-      await api.post('/auth/change-password', { currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword });
+      const res = await api.post('/auth/change-password', { currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword });
+      // Changing the password invalidates the token this session was using —
+      // swap in the fresh one the backend returns so we stay logged in.
+      if (res.data?.token) updateToken(res.data.token);
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       toast.success('Password updated');
     } catch (err) {
