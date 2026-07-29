@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { deleteUserAndAllData } = require('../services/userDeletionService');
 
 const PAGE_SIZE = 20;
 
@@ -77,12 +78,7 @@ async function deleteUser(req, res, next) {
     if (isNaN(id)) return res.status(400).json({ message: 'Invalid user id' });
     if (id === req.user.id) return res.status(400).json({ message: 'Cannot delete your own account' });
 
-    await prisma.$transaction([
-      // Remove jobs posted by this homeowner (cascades to their responses, messages, reviews)
-      prisma.job.deleteMany({ where: { homeownerId: id } }),
-      // Then delete the user (cascades to categories, notifications, jobResponses, reviewsGiven/Received)
-      prisma.user.delete({ where: { id } }),
-    ]);
+    await deleteUserAndAllData(id);
 
     res.json({ message: 'User deleted' });
   } catch (err) {

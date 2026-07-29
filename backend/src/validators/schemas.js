@@ -126,6 +126,12 @@ exports.changePasswordSchema = z.object({
   }),
 });
 
+exports.deleteAccountSchema = z.object({
+  body: z.object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+  }),
+});
+
 exports.updateProfileSchema = z.object({
   body: z.object({
     name: z.string().min(1).max(100).trim().optional(),

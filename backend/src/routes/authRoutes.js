@@ -10,10 +10,11 @@ const {
   verifyEmailSchema,
   resendVerificationSchema,
   changePasswordSchema,
+  deleteAccountSchema,
   updateProfileSchema,
 } = require('../validators/schemas');
 const { register, login, verifyEmail, resendVerificationCode } = require('../controllers/authController');
-const { getMe, updateProfile, changePassword, forgotPassword, resetPassword } = require('../controllers/profileController');
+const { getMe, updateProfile, changePassword, deleteOwnAccount, forgotPassword, resetPassword } = require('../controllers/profileController');
 
 router.post('/register', validateRequest(registerSchema), register);
 router.post('/login', validateRequest(loginSchema), login);
@@ -25,6 +26,7 @@ router.post('/reset-password', validateRequest(resetPasswordSchema), resetPasswo
 router.get('/me', auth, getMe);
 router.patch('/profile', auth, validateRequest(updateProfileSchema), updateProfile);
 router.post('/change-password', auth, validateRequest(changePasswordSchema), changePassword);
+router.delete('/me', auth, validateRequest(deleteAccountSchema), deleteOwnAccount);
 
 module.exports = router;
 

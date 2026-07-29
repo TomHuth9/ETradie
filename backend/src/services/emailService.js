@@ -5,7 +5,18 @@ function categoryLabel(category) {
   return TRADE_CATEGORIES.find((c) => c.id === category)?.label || category;
 }
 
+// Never hit the real SendGrid API from automated tests — mirrors the
+// geocoding service's test-mode stub. Without this, every test that
+// registers/resets/matches a user makes a real network call, which is slow
+// and eventually burns through SendGrid's send quota (as happened here).
+// Checked per-call (not cached at module load) so it stays correct even if
+// NODE_ENV is toggled mid-suite, e.g. by the rate-limiting tests.
+function skipSend() {
+  return process.env.NODE_ENV === 'test';
+}
+
 async function sendPasswordResetEmail(to, token) {
+  if (skipSend()) return;
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
   await sgMail.send({
@@ -18,6 +29,7 @@ async function sendPasswordResetEmail(to, token) {
 }
 
 async function sendVerificationEmail(to, code) {
+  if (skipSend()) return;
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   await sgMail.send({
     to,
@@ -29,6 +41,7 @@ async function sendVerificationEmail(to, code) {
 }
 
 async function sendNewJobMatchEmail(to, job) {
+  if (skipSend()) return;
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   const jobUrl = `${process.env.CLIENT_URL}/jobs/${job.id}`;
   const label = categoryLabel(job.category);

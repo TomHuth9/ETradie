@@ -6,6 +6,7 @@ const { geocodeToLatLng } = require('../services/geocodingService');
 const { validatePassword } = require('./authController');
 const { sendPasswordResetEmail } = require('../services/emailService');
 const { formatAddress } = require('../utils/formatAddress');
+const { deleteUserAndAllData } = require('../services/userDeletionService');
 
 function serializeUser(user) {
   const categories = Array.isArray(user.tradespersonCategories)
@@ -163,6 +164,29 @@ async function changePassword(req, res, next) {
   }
 }
 
+// DELETE /auth/me — self-service account deletion. Requires the current
+// password as confirmation, then permanently deletes the account and all
+// associated data (jobs, responses, messages, reviews, notifications).
+async function deleteOwnAccount(req, res, next) {
+  try {
+    const { currentPassword } = req.body;
+    if (!currentPassword) {
+      return res.status(400).json({ message: 'currentPassword is required' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) return res.status(401).json({ message: 'Current password is incorrect' });
+
+    await deleteUserAndAllData(req.user.id);
+    res.json({ message: 'Account deleted' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // POST /auth/forgot-password — send reset token (in production: email; here we return token for dev).
 async function forgotPassword(req, res, next) {
   try {
@@ -228,6 +252,7 @@ module.exports = {
   getMe,
   updateProfile,
   changePassword,
+  deleteOwnAccount,
   forgotPassword,
   resetPassword,
   serializeUser,

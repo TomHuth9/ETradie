@@ -9,7 +9,7 @@ import {
 } from '../utils/validation';
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +23,10 @@ export default function Profile() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [profileErrors, setProfileErrors] = useState({});
   const [passwordErrors, setPasswordErrors] = useState({});
+  const [deleteExpanded, setDeleteExpanded] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const isTrade = user?.role === 'TRADESPERSON';
 
   useEffect(() => {
@@ -130,6 +134,22 @@ export default function Profile() {
       toast.error(err.response?.data?.message || 'Failed to change password');
     } finally {
       setPasswordSaving(false);
+    }
+  }
+
+  async function handleDeleteAccount(e) {
+    e.preventDefault();
+    setDeleteError('');
+    if (!deletePassword.trim()) { setDeleteError('Enter your password to confirm'); return; }
+    setDeleting(true);
+    try {
+      await api.delete('/auth/me', { data: { currentPassword: deletePassword } });
+      toast.success('Your account has been deleted');
+      logout();
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || 'Failed to delete account');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -289,6 +309,54 @@ export default function Profile() {
             {passwordSaving ? 'Updating…' : 'Change password'}
           </button>
         </form>
+      </div>
+
+      <div className="card" style={{ marginTop: '1.25rem', borderColor: 'var(--color-error, #dc2626)' }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: '1.0625rem' }}>Danger zone</h3>
+        <p className="page-subtitle" style={{ margin: '0 0 16px', fontSize: '0.875rem' }}>
+          Permanently delete your account and all associated data (jobs, messages, reviews). This cannot be undone.
+        </p>
+
+        {!deleteExpanded ? (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ color: 'var(--color-error, #dc2626)', borderColor: 'var(--color-error, #dc2626)' }}
+            onClick={() => setDeleteExpanded(true)}
+          >
+            Delete my account
+          </button>
+        ) : (
+          <form onSubmit={handleDeleteAccount}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="delpw">Enter your password to confirm</label>
+              <input id="delpw" type="password"
+                className={`form-input${deleteError ? ' form-input-error' : ''}`}
+                value={deletePassword}
+                onChange={e => { setDeletePassword(e.target.value); setDeleteError(''); }}
+                required />
+              {deleteError && <span className="form-field-error">{deleteError}</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ background: 'var(--color-error, #dc2626)', borderColor: 'var(--color-error, #dc2626)' }}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting…' : 'Yes, permanently delete my account'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => { setDeleteExpanded(false); setDeletePassword(''); setDeleteError(''); }}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
