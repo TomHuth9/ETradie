@@ -42,7 +42,9 @@ describe('E2E: auth and basic homeowner flow', () => {
         email: uniqueEmail,
         password,
         role: 'homeowner',
-        address: '10 High Street, Glasgow',
+        addressLine1: '10 High Street',
+        addressCity: 'Glasgow',
+        addressPostcode: 'G1 1AA',
       });
 
     expect(registerRes.status).toBe(201);
@@ -121,10 +123,10 @@ describe('E2E: admin endpoints', () => {
   let adminToken;
 
   beforeAll(async () => {
-    const hw = await registerAndVerify({ name: 'Test HW', email: homeownerEmail, password, role: 'homeowner', address: '10 High Street, Glasgow' });
+    const hw = await registerAndVerify({ name: 'Test HW', email: homeownerEmail, password, role: 'homeowner', addressLine1: '10 High Street', addressCity: 'Glasgow', addressPostcode: 'G1 1AA' });
     homeownerToken = hw.verifyRes.body.token;
 
-    await registerAndVerify({ name: 'Test Admin', email: adminEmail, password, role: 'homeowner', address: '10 High Street, Glasgow' });
+    await registerAndVerify({ name: 'Test Admin', email: adminEmail, password, role: 'homeowner', addressLine1: '10 High Street', addressCity: 'Glasgow', addressPostcode: 'G1 1AA' });
 
     await prisma.user.update({ where: { email: adminEmail }, data: { role: 'ADMIN' } });
 
@@ -193,7 +195,9 @@ describe('E2E: tradesperson sees nearby job', () => {
       email: homeownerEmail,
       password,
       role: 'homeowner',
-      address: '10 High Street, Glasgow',
+      addressLine1: '10 High Street',
+      addressCity: 'Glasgow',
+      addressPostcode: 'G1 1AA',
     });
     expect(regHome.status).toBe(201);
     const homeownerToken = verifyHome.body.token;

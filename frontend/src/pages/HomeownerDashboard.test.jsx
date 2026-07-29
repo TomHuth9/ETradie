@@ -18,7 +18,10 @@ vi.mock('../contexts/AuthContext', () => ({
     user: {
       id: 1,
       role: 'HOMEOWNER',
-      address: '10 High Street, Glasgow',
+      addressLine1: '10 High Street',
+      addressLine2: '',
+      addressCity: 'Glasgow',
+      addressPostcode: 'G1 1AA',
     },
   }),
 }));

@@ -13,7 +13,7 @@ describe('Validation schemas', () => {
         email: 'not-an-email',
         password: 'short',
         role: 'homeowner',
-        address: '',
+        addressLine1: '',
         townOrCity: '',
       },
     });
@@ -27,10 +27,27 @@ describe('Validation schemas', () => {
         email: 'alice@example.com',
         password: 'Password123',
         role: 'homeowner',
-        address: '10 High Street, Glasgow',
+        addressLine1: '10 High Street',
+        addressCity: 'Glasgow',
+        addressPostcode: 'G1 1AA',
       },
     });
     expect(result.success).toBe(true);
+  });
+
+  test('registerSchema rejects an invalid UK postcode', () => {
+    const result = registerSchema.safeParse({
+      body: {
+        name: 'Alice Homeowner',
+        email: 'alice@example.com',
+        password: 'Password123',
+        role: 'homeowner',
+        addressLine1: '10 High Street',
+        addressCity: 'Glasgow',
+        addressPostcode: 'not-a-postcode',
+      },
+    });
+    expect(result.success).toBe(false);
   });
 
   test('loginSchema requires email and password', () => {
