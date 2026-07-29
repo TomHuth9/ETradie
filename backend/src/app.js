@@ -40,6 +40,8 @@ const apiLimiter = rateLimit({
 // Strict limiter only on credential-submission endpoints; /auth/me and profile management routes use the general limiter so repeated page loads don't 429.
 app.use('/auth/login', authLimiter);
 app.use('/auth/register', authLimiter);
+app.use('/auth/verify-email', authLimiter);
+app.use('/auth/resend-verification', authLimiter);
 app.use('/auth/forgot-password', authLimiter);
 app.use('/auth/reset-password', authLimiter);
 app.use('/auth', apiLimiter);

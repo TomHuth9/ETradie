@@ -12,4 +12,15 @@ async function sendPasswordResetEmail(to, token) {
   });
 }
 
-module.exports = { sendPasswordResetEmail };
+async function sendVerificationEmail(to, code) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  await sgMail.send({
+    to,
+    from: process.env.FROM_EMAIL,
+    subject: 'Verify your ETradie email address',
+    text: `Your ETradie verification code is: ${code}\n\nEnter this code to finish creating your account. It expires in 15 minutes.\n\nIf you didn't create an account, ignore this email.`,
+    html: `<p>Your ETradie verification code is:</p><p style="font-size:24px;font-weight:bold;letter-spacing:4px;">${code}</p><p>Enter this code to finish creating your account. It expires in 15 minutes.</p><p>If you didn't create an account, ignore this email.</p>`,
+  });
+}
+
+module.exports = { sendPasswordResetEmail, sendVerificationEmail };

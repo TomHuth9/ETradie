@@ -94,8 +94,13 @@ export function AuthProvider({ children }) {
 
   async function register(payload) {
     const response = await api.post('/auth/register', payload);
-    const { token: newToken, user: newUser } = response.data;
+    // Registration no longer logs the user in directly — the account is
+    // unverified until they enter the code emailed to them.
+    navigate('/verify-email', { state: { email: response.data.email } });
+    return response.data;
+  }
 
+  function applyAuth(newUser, newToken) {
     setUser(newUser);
     setToken(newToken);
     api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
@@ -104,22 +109,26 @@ export function AuthProvider({ children }) {
       navigate('/dashboard');
     } else if (newUser.role === 'TRADESPERSON') {
       navigate('/tradesperson-dashboard');
+    } else if (newUser.role === 'ADMIN') {
+      navigate('/admin');
     }
+  }
+
+  async function verifyEmail(email, code) {
+    const response = await api.post('/auth/verify-email', { email, code });
+    const { token: newToken, user: newUser } = response.data;
+    applyAuth(newUser, newToken);
+  }
+
+  async function resendVerification(email) {
+    const response = await api.post('/auth/resend-verification', { email });
+    return response.data;
   }
 
   async function login(credentials) {
     const response = await api.post('/auth/login', credentials);
     const { token: newToken, user: newUser } = response.data;
-
-    setUser(newUser);
-    setToken(newToken);
-    api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
-
-    if (newUser.role === 'HOMEOWNER') {
-      navigate('/dashboard');
-    } else if (newUser.role === 'TRADESPERSON') {
-      navigate('/tradesperson-dashboard');
-    }
+    applyAuth(newUser, newToken);
   }
 
   function logout() {
@@ -136,6 +145,8 @@ export function AuthProvider({ children }) {
     isSocketConnected,
     register,
     login,
+    verifyEmail,
+    resendVerification,
     logout,
   };
 

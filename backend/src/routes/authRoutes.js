@@ -7,14 +7,18 @@ const {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
   changePasswordSchema,
   updateProfileSchema,
 } = require('../validators/schemas');
-const { register, login } = require('../controllers/authController');
+const { register, login, verifyEmail, resendVerificationCode } = require('../controllers/authController');
 const { getMe, updateProfile, changePassword, forgotPassword, resetPassword } = require('../controllers/profileController');
 
 router.post('/register', validateRequest(registerSchema), register);
 router.post('/login', validateRequest(loginSchema), login);
+router.post('/verify-email', validateRequest(verifyEmailSchema), verifyEmail);
+router.post('/resend-verification', validateRequest(resendVerificationSchema), resendVerificationCode);
 router.post('/forgot-password', validateRequest(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', validateRequest(resetPasswordSchema), resetPassword);
 

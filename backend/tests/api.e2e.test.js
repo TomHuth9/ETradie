@@ -2,6 +2,17 @@ const request = require('supertest');
 const app = require('../src/app');
 const prisma = require('../src/prismaClient');
 
+// Registration no longer logs the user in directly — it creates an unverified
+// account and emails a 6-digit code. In non-production, the response also
+// includes devVerificationCode so tests can complete the flow without a mailbox.
+async function registerAndVerify(payload) {
+  const registerRes = await request(app).post('/auth/register').send(payload);
+  const verifyRes = await request(app)
+    .post('/auth/verify-email')
+    .send({ email: registerRes.body.email, code: registerRes.body.devVerificationCode });
+  return { registerRes, verifyRes };
+}
+
 describe('E2E: auth and basic homeowner flow', () => {
   const uniqueEmail = `test+${Date.now()}@example.com`;
   const password = 'Password123';
@@ -22,21 +33,30 @@ describe('E2E: auth and basic homeowner flow', () => {
     expect(res.body).toHaveProperty('status', 'ok');
   });
 
-  test('can register, login, post a job, and fetch my jobs', async () => {
-    // Register homeowner
-    const registerRes = await request(app)
-      .post('/auth/register')
-      .send({
-        name: 'Test Homeowner',
-        email: uniqueEmail,
-        password,
-        role: 'homeowner',
-        address: '10 High Street, Glasgow',
-      });
+  test('can register, verify email, login, post a job, and fetch my jobs', async () => {
+    // Register homeowner (unverified — code emailed, returned in dev/test response)
+    const { registerRes, verifyRes } = await registerAndVerify({
+      name: 'Test Homeowner',
+      email: uniqueEmail,
+      password,
+      role: 'homeowner',
+      address: '10 High Street, Glasgow',
+    });
 
     expect(registerRes.status).toBe(201);
-    expect(registerRes.body).toHaveProperty('token');
-    expect(registerRes.body.user).toMatchObject({
+    expect(registerRes.body).not.toHaveProperty('token');
+    expect(registerRes.body.email).toBe(uniqueEmail.toLowerCase());
+
+    // Login is rejected until the account is verified
+    const loginBeforeVerify = await request(app)
+      .post('/auth/login')
+      .send({ email: uniqueEmail, password });
+    expect(loginBeforeVerify.status).toBe(403);
+    expect(loginBeforeVerify.body.code).toBe('EMAIL_NOT_VERIFIED');
+
+    expect(verifyRes.status).toBe(200);
+    expect(verifyRes.body).toHaveProperty('token');
+    expect(verifyRes.body.user).toMatchObject({
       email: uniqueEmail.toLowerCase(),
       role: 'HOMEOWNER',
     });

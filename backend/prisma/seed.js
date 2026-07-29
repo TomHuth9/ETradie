@@ -31,6 +31,7 @@ async function main() {
       address: '1 George Square, Glasgow, G2 1AL',
       lat: 55.860916,
       lng: -4.251433,
+      emailVerified: true,
     },
   });
 
@@ -45,6 +46,7 @@ async function main() {
       lat: 55.8642,
       lng: -4.2518,
       availability: true,
+      emailVerified: true,
     },
   });
 

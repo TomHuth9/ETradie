@@ -83,6 +83,29 @@ exports.resetPasswordSchema = z.object({
   }),
 });
 
+exports.verifyEmailSchema = z.object({
+  body: z.object({
+    email: z
+      .string()
+      .email('Invalid email')
+      .max(254, 'Email is too long')
+      .trim()
+      .toLowerCase(),
+    code: z.string().regex(/^\d{6}$/, 'Code must be 6 digits'),
+  }),
+});
+
+exports.resendVerificationSchema = z.object({
+  body: z.object({
+    email: z
+      .string()
+      .email('Invalid email')
+      .max(254, 'Email is too long')
+      .trim()
+      .toLowerCase(),
+  }),
+});
+
 exports.changePasswordSchema = z.object({
   body: z.object({
     currentPassword: z.string().min(1, 'Current password is required'),

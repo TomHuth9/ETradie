@@ -1,7 +1,15 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const prisma = require('../prismaClient');
 const { geocodeToLatLng } = require('../services/geocodingService');
+const { sendVerificationEmail } = require('../services/emailService');
+
+const VERIFICATION_CODE_TTL_MS = 15 * 60 * 1000;
+
+function generateVerificationCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
 
 // Helper to generate a JWT for a user.
 function generateToken(user) {
@@ -87,6 +95,7 @@ async function register(req, res, next) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const verificationCode = generateVerificationCode();
 
     const user = await prisma.user.create({
       data: {
@@ -98,23 +107,21 @@ async function register(req, res, next) {
         townOrCity: prismaRole === 'TRADESPERSON' ? locationText : null,
         lat,
         lng,
+        emailVerificationCode: verificationCode,
+        emailVerificationExpiresAt: new Date(Date.now() + VERIFICATION_CODE_TTL_MS),
       },
     });
 
-    const token = generateToken(user);
+    try {
+      await sendVerificationEmail(user.email, verificationCode);
+    } catch (emailErr) {
+      console.error('Verification email failed:', emailErr?.response?.body ?? emailErr.message);
+    }
 
     res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        address: user.address,
-        townOrCity: user.townOrCity,
-        lat: user.lat,
-        lng: user.lng,
-      },
+      message: 'Account created. Check your email for a 6-digit verification code.',
+      email: user.email,
+      ...(process.env.NODE_ENV !== 'production' ? { devVerificationCode: verificationCode } : {}),
     });
   } catch (err) {
     next(err);
@@ -143,6 +150,13 @@ async function login(req, res, next) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        message: 'Please verify your email before logging in.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
+
     const token = generateToken(user);
 
     res.json({
@@ -163,9 +177,111 @@ async function login(req, res, next) {
   }
 }
 
+// POST /auth/verify-email — email + 6-digit code, activates the account and logs in.
+async function verifyEmail(req, res, next) {
+  try {
+    const { email, code } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid email or code' });
+    }
+
+    if (user.emailVerified) {
+      const token = generateToken(user);
+      return res.json({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          address: user.address,
+          townOrCity: user.townOrCity,
+          lat: user.lat,
+          lng: user.lng,
+        },
+      });
+    }
+
+    if (
+      !user.emailVerificationCode ||
+      user.emailVerificationCode !== code ||
+      !user.emailVerificationExpiresAt ||
+      user.emailVerificationExpiresAt < new Date()
+    ) {
+      return res.status(400).json({ message: 'Invalid or expired verification code' });
+    }
+
+    const verifiedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationCode: null,
+        emailVerificationExpiresAt: null,
+      },
+    });
+
+    const token = generateToken(verifiedUser);
+
+    res.json({
+      token,
+      user: {
+        id: verifiedUser.id,
+        name: verifiedUser.name,
+        email: verifiedUser.email,
+        role: verifiedUser.role,
+        address: verifiedUser.address,
+        townOrCity: verifiedUser.townOrCity,
+        lat: verifiedUser.lat,
+        lng: verifiedUser.lng,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /auth/resend-verification — issues a fresh code for an unverified account.
+async function resendVerificationCode(req, res, next) {
+  try {
+    const { email } = req.body;
+    const genericResponse = { message: 'If that account exists and needs verifying, we sent a new code.' };
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || user.emailVerified) {
+      return res.json(genericResponse);
+    }
+
+    const verificationCode = generateVerificationCode();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerificationCode: verificationCode,
+        emailVerificationExpiresAt: new Date(Date.now() + VERIFICATION_CODE_TTL_MS),
+      },
+    });
+
+    try {
+      await sendVerificationEmail(user.email, verificationCode);
+    } catch (emailErr) {
+      console.error('Verification email failed:', emailErr?.response?.body ?? emailErr.message);
+    }
+
+    res.json({
+      ...genericResponse,
+      ...(process.env.NODE_ENV !== 'production' ? { devVerificationCode: verificationCode } : {}),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   register,
   login,
+  verifyEmail,
+  resendVerificationCode,
   validatePassword,
 };
 

@@ -50,46 +50,49 @@ enum JobResponseStatus {
 }
 
 model User {
-  id           Int       @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   name         String
-  email        String    @unique
+  email        String   @unique
   passwordHash String
   role         UserRole
 
   // Homeowners: full address string (including postcode).
-  address      String?   // only for homeowners
+  address String? // only for homeowners
 
   // Tradespeople: town or city name (e.g. "Glasgow").
-  townOrCity   String?   // only for tradespeople
+  townOrCity String? // only for tradespeople
 
   // Geocoded coordinates derived from address or town/city.
-  lat          Float?
-  lng          Float?
+  lat Float?
+  lng Float?
 
-  createdAt    DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  passwordResetToken       String?   @unique
-  passwordResetExpiresAt   DateTime?
-  availability             Boolean?  // tradesperson: true = available
+  passwordResetToken         String?   @unique
+  passwordResetExpiresAt     DateTime?
+  emailVerified              Boolean   @default(false)
+  emailVerificationCode      String?
+  emailVerificationExpiresAt DateTime?
+  availability               Boolean? // tradesperson: true = available
   // Standard working hours description, e.g. "Mon–Fri 09:00–17:00".
-  workingHours             String?
+  workingHours               String?
   // Whether the user is currently online (active session via Socket.IO).
-  isOnline                 Boolean   @default(false)
+  isOnline                   Boolean   @default(false)
 
-  jobs           Job[]             @relation("HomeownerJobs")
+  jobs                   Job[]                  @relation("HomeownerJobs")
   tradespersonCategories TradespersonCategory[]
-  jobResponses   JobResponse[]
-  messagesSent   Message[]
-  reviewsGiven   Review[]          @relation("Reviewer")
-  reviewsReceived Review[]         @relation("Reviewee")
-  notifications  Notification[]
+  jobResponses           JobResponse[]
+  messagesSent           Message[]
+  reviewsGiven           Review[]               @relation("Reviewer")
+  reviewsReceived        Review[]               @relation("Reviewee")
+  notifications          Notification[]
 }
 
 model TradespersonCategory {
-  id        Int           @id @default(autoincrement())
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    Int
-  category  TradeCategory
+  id       Int           @id @default(autoincrement())
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   Int
+  category TradeCategory
 
   @@unique([userId, category])
 }
@@ -106,14 +109,14 @@ model Job {
   lat          Float
   lng          Float
 
-  createdAt   DateTime      @default(now())
+  createdAt DateTime @default(now())
 
-  homeowner   User          @relation("HomeownerJobs", fields: [homeownerId], references: [id])
+  homeowner   User @relation("HomeownerJobs", fields: [homeownerId], references: [id])
   homeownerId Int
 
-  responses   JobResponse[]
-  messages    Message[]
-  reviews     Review[]
+  responses JobResponse[]
+  messages  Message[]
+  reviews   Review[]
 
   @@index([homeownerId, status])
   @@index([status])
@@ -121,15 +124,15 @@ model Job {
 }
 
 model JobResponse {
-  id            Int               @id @default(autoincrement())
-  job           Job               @relation(fields: [jobId], references: [id])
-  jobId         Int
+  id    Int @id @default(autoincrement())
+  job   Job @relation(fields: [jobId], references: [id])
+  jobId Int
 
-  tradesperson  User              @relation(fields: [tradespersonId], references: [id])
+  tradesperson   User @relation(fields: [tradespersonId], references: [id])
   tradespersonId Int
 
-  response      JobResponseStatus
-  respondedAt   DateTime          @default(now())
+  response    JobResponseStatus
+  respondedAt DateTime          @default(now())
 
   @@unique([jobId, tradespersonId])
   @@index([tradespersonId])
@@ -155,7 +158,7 @@ model Review {
   reviewerId Int
   reviewee   User     @relation("Reviewee", fields: [revieweeId], references: [id])
   revieweeId Int
-  rating     Int      // 1-5
+  rating     Int // 1-5
   comment    String?
   createdAt  DateTime @default(now())
 
@@ -164,15 +167,14 @@ model Review {
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        Int       @id @default(autoincrement())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
   type      String
   message   String
   link      String?
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId, readAt])
 }
-

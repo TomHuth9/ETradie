@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { validateEmail } from '../utils/validation';
 
 export default function Login() {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
   function handleChange(e) {
@@ -24,6 +26,7 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setNeedsVerification(false);
     const emailErr = validateEmail(form.email);
     const passwordErr = !form.password?.trim() ? 'Password is required' : null;
     const errs = {};
@@ -36,6 +39,7 @@ export default function Login() {
       await login(form);
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please try again.');
+      if (err.response?.data?.code === 'EMAIL_NOT_VERIFIED') setNeedsVerification(true);
     } finally {
       setLoading(false);
     }
@@ -48,7 +52,23 @@ export default function Login() {
         <p className="page-subtitle">Log in to your etradie account</p>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
+      {error && (
+        <div className="alert alert-error">
+          {error}
+          {needsVerification && (
+            <>
+              {' '}
+              <button
+                type="button"
+                onClick={() => navigate('/verify-email', { state: { email: form.email } })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', textDecoration: 'underline', color: 'inherit' }}
+              >
+                Verify now
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <form onSubmit={handleSubmit}>
