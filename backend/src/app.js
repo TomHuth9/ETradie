@@ -15,12 +15,14 @@ const { sanitize } = require('./middleware/sanitize');
 
 const app = express();
 
+// Render (and most PaaS hosts) sit behind a reverse proxy that sets X-Forwarded-For. Trust the first hop so express-rate-limit and req.ip see the real client IP instead of throwing/misattributing it.
+app.set('trust proxy', 1);
+
 // Reject bodies larger than 50 KB to prevent payload-based DoS.
 app.use(express.json({ limit: '50kb' }));
 app.use(express.urlencoded({ extended: false, limit: '50kb' }));
 
-// Strip HTML tags, null bytes, and control characters from all string inputs
-// before any route or validation middleware sees them.
+// Strip HTML tags, null bytes, and control characters from all string inputs before any route or validation middleware sees them.
 app.use(sanitize);
 
 // Rate limiting: auth 5 attempts per 15 mins per IP, general API 100/min per IP
@@ -35,8 +37,7 @@ const apiLimiter = rateLimit({
   max: 100,
   message: { message: 'Too many requests; try again later.' },
 });
-// Strict limiter only on credential-submission endpoints; /auth/me and profile
-// management routes use the general limiter so repeated page loads don't 429.
+// Strict limiter only on credential-submission endpoints; /auth/me and profile management routes use the general limiter so repeated page loads don't 429.
 app.use('/auth/login', authLimiter);
 app.use('/auth/register', authLimiter);
 app.use('/auth/forgot-password', authLimiter);
