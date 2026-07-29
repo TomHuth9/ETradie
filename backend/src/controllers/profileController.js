@@ -7,6 +7,7 @@ const { validatePassword, generateToken } = require('./authController');
 const { sendPasswordResetEmail } = require('../services/emailService');
 const { formatAddress } = require('../utils/formatAddress');
 const { deleteUserAndAllData } = require('../services/userDeletionService');
+const { hashToken } = require('../utils/hashToken');
 
 function serializeUser(user) {
   const categories = Array.isArray(user.tradespersonCategories)
@@ -207,7 +208,7 @@ async function forgotPassword(req, res, next) {
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
     await prisma.user.update({
       where: { id: user.id },
-      data: { passwordResetToken: token, passwordResetExpiresAt: expiresAt },
+      data: { passwordResetToken: hashToken(token), passwordResetExpiresAt: expiresAt },
     });
 
     if (process.env.NODE_ENV !== 'production') {
@@ -236,7 +237,7 @@ async function resetPassword(req, res, next) {
 
     const user = await prisma.user.findFirst({
       where: {
-        passwordResetToken: token,
+        passwordResetToken: hashToken(token),
         passwordResetExpiresAt: { gt: new Date() },
       },
     });

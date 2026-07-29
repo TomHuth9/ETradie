@@ -102,6 +102,11 @@ async function register(req, res, next) {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const verificationCode = generateVerificationCode();
+    // A 6-digit code has far less entropy than a password, so — like
+    // passwords — it's hashed with bcrypt (slow by design) rather than a
+    // fast hash, so a leaked DB can't be brute-forced through all 1M
+    // possibilities cheaply.
+    const verificationCodeHash = await bcrypt.hash(verificationCode, 10);
 
     const user = await prisma.user.create({
       data: {
@@ -116,7 +121,7 @@ async function register(req, res, next) {
         townOrCity: prismaRole === 'TRADESPERSON' ? locationText : null,
         lat,
         lng,
-        emailVerificationCode: verificationCode,
+        emailVerificationCode: verificationCodeHash,
         emailVerificationExpiresAt: new Date(Date.now() + VERIFICATION_CODE_TTL_MS),
       },
     });
@@ -221,10 +226,14 @@ async function verifyEmail(req, res, next) {
 
     if (
       !user.emailVerificationCode ||
-      user.emailVerificationCode !== code ||
       !user.emailVerificationExpiresAt ||
       user.emailVerificationExpiresAt < new Date()
     ) {
+      return res.status(400).json({ message: 'Invalid or expired verification code' });
+    }
+
+    const codeValid = await bcrypt.compare(code, user.emailVerificationCode);
+    if (!codeValid) {
       return res.status(400).json({ message: 'Invalid or expired verification code' });
     }
 
@@ -272,10 +281,11 @@ async function resendVerificationCode(req, res, next) {
     }
 
     const verificationCode = generateVerificationCode();
+    const verificationCodeHash = await bcrypt.hash(verificationCode, 10);
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        emailVerificationCode: verificationCode,
+        emailVerificationCode: verificationCodeHash,
         emailVerificationExpiresAt: new Date(Date.now() + VERIFICATION_CODE_TTL_MS),
       },
     });
