@@ -35,13 +35,15 @@ describe('E2E: auth and basic homeowner flow', () => {
 
   test('can register, verify email, login, post a job, and fetch my jobs', async () => {
     // Register homeowner (unverified — code emailed, returned in dev/test response)
-    const { registerRes, verifyRes } = await registerAndVerify({
-      name: 'Test Homeowner',
-      email: uniqueEmail,
-      password,
-      role: 'homeowner',
-      address: '10 High Street, Glasgow',
-    });
+    const registerRes = await request(app)
+      .post('/auth/register')
+      .send({
+        name: 'Test Homeowner',
+        email: uniqueEmail,
+        password,
+        role: 'homeowner',
+        address: '10 High Street, Glasgow',
+      });
 
     expect(registerRes.status).toBe(201);
     expect(registerRes.body).not.toHaveProperty('token');
@@ -53,6 +55,10 @@ describe('E2E: auth and basic homeowner flow', () => {
       .send({ email: uniqueEmail, password });
     expect(loginBeforeVerify.status).toBe(403);
     expect(loginBeforeVerify.body.code).toBe('EMAIL_NOT_VERIFIED');
+
+    const verifyRes = await request(app)
+      .post('/auth/verify-email')
+      .send({ email: registerRes.body.email, code: registerRes.body.devVerificationCode });
 
     expect(verifyRes.status).toBe(200);
     expect(verifyRes.body).toHaveProperty('token');
@@ -115,14 +121,10 @@ describe('E2E: admin endpoints', () => {
   let adminToken;
 
   beforeAll(async () => {
-    const hwRes = await request(app)
-      .post('/auth/register')
-      .send({ name: 'Test HW', email: homeownerEmail, password, role: 'homeowner', address: '10 High Street, Glasgow' });
-    homeownerToken = hwRes.body.token;
+    const hw = await registerAndVerify({ name: 'Test HW', email: homeownerEmail, password, role: 'homeowner', address: '10 High Street, Glasgow' });
+    homeownerToken = hw.verifyRes.body.token;
 
-    await request(app)
-      .post('/auth/register')
-      .send({ name: 'Test Admin', email: adminEmail, password, role: 'homeowner', address: '10 High Street, Glasgow' });
+    await registerAndVerify({ name: 'Test Admin', email: adminEmail, password, role: 'homeowner', address: '10 High Street, Glasgow' });
 
     await prisma.user.update({ where: { email: adminEmail }, data: { role: 'ADMIN' } });
 
@@ -185,18 +187,16 @@ describe('E2E: tradesperson sees nearby job', () => {
   });
 
   test('homeowner posts job, tradesperson fetches it via /jobs/nearby', async () => {
-    // Register homeowner and create a job
-    const regHome = await request(app)
-      .post('/auth/register')
-      .send({
-        name: 'Test Homeowner',
-        email: homeownerEmail,
-        password,
-        role: 'homeowner',
-        address: '10 High Street, Glasgow',
-      });
+    // Register + verify homeowner and create a job
+    const { registerRes: regHome, verifyRes: verifyHome } = await registerAndVerify({
+      name: 'Test Homeowner',
+      email: homeownerEmail,
+      password,
+      role: 'homeowner',
+      address: '10 High Street, Glasgow',
+    });
     expect(regHome.status).toBe(201);
-    const homeownerToken = regHome.body.token;
+    const homeownerToken = verifyHome.body.token;
 
     const jobRes = await request(app)
       .post('/jobs')
@@ -210,18 +210,16 @@ describe('E2E: tradesperson sees nearby job', () => {
     expect(jobRes.status).toBe(201);
     const jobId = jobRes.body.id;
 
-    // Register tradesperson (same area so geocoding in test gives same coords = nearby)
-    const regTrade = await request(app)
-      .post('/auth/register')
-      .send({
-        name: 'Test Tradesperson',
-        email: tradespersonEmail,
-        password,
-        role: 'tradesperson',
-        townOrCity: 'Glasgow',
-      });
+    // Register + verify tradesperson (same area so geocoding in test gives same coords = nearby)
+    const { registerRes: regTrade, verifyRes: verifyTrade } = await registerAndVerify({
+      name: 'Test Tradesperson',
+      email: tradespersonEmail,
+      password,
+      role: 'tradesperson',
+      townOrCity: 'Glasgow',
+    });
     expect(regTrade.status).toBe(201);
-    const tradespersonToken = regTrade.body.token;
+    const tradespersonToken = verifyTrade.body.token;
 
     const nearbyRes = await request(app)
       .get('/jobs/nearby')
