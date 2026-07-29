@@ -135,14 +135,7 @@ async function listReviewsForJob(req, res, next) {
     const id = Number(req.params.id);
     const job = await prisma.job.findUnique({
       where: { id },
-      select: { id: true, homeownerId: true },
-      include: {
-        responses: {
-          where: { response: 'ACCEPTED' },
-          take: 1,
-          select: { tradespersonId: true },
-        },
-      },
+      select: { id: true },
     });
 
     if (!job) {
