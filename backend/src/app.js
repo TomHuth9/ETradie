@@ -51,12 +51,29 @@ app.use('/users', apiLimiter);
 app.use('/notifications', apiLimiter);
 app.use('/admin', apiLimiter);
 
-// Configure CORS so the React dev server can talk to this API.
+// Configure CORS so the React dev server (and deployed frontend) can talk to this API.
 // CLIENT_URL is defined in .env; fall back to a sensible local default.
-const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
+// Browsers treat "www.example.com" and "example.com" as different origins, so
+// whichever variant CLIENT_URL points at, allow the other one too.
+const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+const allowedOrigins = new Set([rawClientUrl]);
+try {
+  const clientUrl = new URL(rawClientUrl);
+  const altHost = clientUrl.hostname.startsWith('www.')
+    ? clientUrl.hostname.slice(4)
+    : `www.${clientUrl.hostname}`;
+  allowedOrigins.add(`${clientUrl.protocol}//${altHost}`);
+} catch (_) {
+  // rawClientUrl wasn't a valid URL; only the exact string above is allowed.
+}
+
 app.use(
   cors({
-    origin: allowedOrigin,
+    origin: (origin, callback) => {
+      // No Origin header (curl, server-to-server, health checks) — allow.
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
