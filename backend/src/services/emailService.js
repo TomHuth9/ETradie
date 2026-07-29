@@ -1,4 +1,9 @@
 const sgMail = require('@sendgrid/mail');
+const { TRADE_CATEGORIES } = require('../controllers/tradeController');
+
+function categoryLabel(category) {
+  return TRADE_CATEGORIES.find((c) => c.id === category)?.label || category;
+}
 
 async function sendPasswordResetEmail(to, token) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -23,4 +28,17 @@ async function sendVerificationEmail(to, code) {
   });
 }
 
-module.exports = { sendPasswordResetEmail, sendVerificationEmail };
+async function sendNewJobMatchEmail(to, job) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  const jobUrl = `${process.env.CLIENT_URL}/jobs/${job.id}`;
+  const label = categoryLabel(job.category);
+  await sgMail.send({
+    to,
+    from: process.env.FROM_EMAIL,
+    subject: `New job near you: ${job.title}`,
+    text: `A new ${label} job was just posted near you:\n\n"${job.title}"\n${job.locationText}\n\nView and respond:\n${jobUrl}\n\nYou're receiving this because the job matches your trade category and is within 25km of you.`,
+    html: `<p>A new <strong>${label}</strong> job was just posted near you:</p><p><strong>${job.title}</strong><br>${job.locationText}</p><p><a href="${jobUrl}">View and respond</a></p><p style="color:#666;font-size:12px;">You're receiving this because the job matches your trade category and is within 25km of you.</p>`,
+  });
+}
+
+module.exports = { sendPasswordResetEmail, sendVerificationEmail, sendNewJobMatchEmail };

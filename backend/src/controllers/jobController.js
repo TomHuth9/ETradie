@@ -2,6 +2,50 @@ const prisma = require('../prismaClient');
 const { geocodeToLatLng } = require('../services/geocodingService');
 const { haversineDistanceKm } = require('../utils/haversine');
 const { createNotification } = require('../services/notificationService');
+const { sendNewJobMatchEmail } = require('../services/emailService');
+
+const NEARBY_RADIUS_KM = 25;
+
+// Finds tradespeople within NEARBY_RADIUS_KM of a job whose selected trade
+// categories include the job's category (tradespeople with no categories set
+// are treated as open to all categories, matching the /jobs/nearby behaviour).
+async function findMatchingTradespeople(job) {
+  if (job.lat == null || job.lng == null) return [];
+
+  const tradespeople = await prisma.user.findMany({
+    where: { role: 'TRADESPERSON', lat: { not: null }, lng: { not: null } },
+    include: { tradespersonCategories: { select: { category: true } } },
+  });
+
+  return tradespeople.filter((tp) => {
+    const distance = haversineDistanceKm(job.lat, job.lng, tp.lat, tp.lng);
+    if (distance > NEARBY_RADIUS_KM) return false;
+    const categories = tp.tradespersonCategories.map((c) => c.category);
+    if (categories.length > 0 && !categories.includes(job.category)) return false;
+    return true;
+  });
+}
+
+// Emails matching tradespeople about a new job. Fire-and-forget — never
+// awaited by the request handler, so a slow/failed send can't delay or break
+// job posting. Skipped in tests to avoid spamming real inboxes and burning
+// SendGrid quota, since test-mode geocoding returns identical dummy
+// coordinates for every user/job (everything would "match").
+async function notifyMatchingTradespeopleByEmail(job) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const matches = await findMatchingTradespeople(job);
+    await Promise.allSettled(
+      matches.map((tp) =>
+        sendNewJobMatchEmail(tp.email, job).catch((err) => {
+          console.error(`New-job-match email failed for user ${tp.id}:`, err?.response?.body ?? err.message);
+        })
+      )
+    );
+  } catch (err) {
+    console.error('New-job-match email matching failed:', err.message);
+  }
+}
 
 // POST /jobs
 // Homeowner posts a new job. We geocode the job location and broadcast to nearby tradespeople.
@@ -48,6 +92,10 @@ async function createJob(req, res, next) {
     if (serverInstance && typeof serverInstance.broadcastNewJob === 'function') {
       serverInstance.broadcastNewJob(job);
     }
+
+    // Email nearby matching tradespeople too, so they're reached even if
+    // offline. Not awaited — see notifyMatchingTradespeopleByEmail comment.
+    notifyMatchingTradespeopleByEmail(job);
 
     res.status(201).json(job);
   } catch (err) {
@@ -201,8 +249,6 @@ async function respondToJob(req, res, next) {
     next(err);
   }
 }
-
-const NEARBY_RADIUS_KM = 25;
 
 // GET /jobs/nearby — tradesperson: pending jobs within 25km they haven't responded to.
 async function getNearbyJobs(req, res, next) {
