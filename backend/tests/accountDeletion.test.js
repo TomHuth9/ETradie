@@ -26,9 +26,10 @@ describe('E2E: self-service account deletion', () => {
       .send({ currentPassword: password });
     expect(del.status).toBe(200);
 
-    // Token is now orphaned — the user it points to no longer exists.
+    // Token is now orphaned — authMiddleware rejects it (user no longer
+    // exists) before the request ever reaches getMe's own check.
     const meAfter = await request(app).get('/auth/me').set('Authorization', `Bearer ${token}`);
-    expect(meAfter.status).toBe(404);
+    expect(meAfter.status).toBe(401);
 
     const loginAfter = await request(app).post('/auth/login').send({ email, password });
     expect(loginAfter.status).toBe(401);
