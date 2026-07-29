@@ -64,9 +64,9 @@ describe('HomeownerDashboard', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /homeowner dashboard/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /good to see you/i })).toBeInTheDocument();
     });
-    expect(screen.getByRole('heading', { name: /post a job/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /post a new job/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/description/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/job location/i)).toBeInTheDocument();
