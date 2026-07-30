@@ -1,5 +1,8 @@
 const http = require('http');
 const app = require('./app');
+const { validateEnv } = require('./utils/validateEnv');
+
+validateEnv();
 
 const PORT = process.env.PORT || 4000;
 
