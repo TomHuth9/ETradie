@@ -16,6 +16,7 @@ const LIMITS = {
   locationText: 255,
   messageContent: 4000,
   reviewComment: 4000,
+  quoteMessage: 1000,
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -111,6 +112,20 @@ export function validateMessageContent(value) {
 export function validateReviewComment(value) {
   const s = typeof value === 'string' ? value.trim() : '';
   if (s && s.length > LIMITS.reviewComment) return `Comment must be ${LIMITS.reviewComment} characters or fewer`;
+  return null;
+}
+
+export function validateQuotePrice(value) {
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (value === '' || value == null || Number.isNaN(n)) return 'Enter a price';
+  if (n <= 0) return 'Price must be greater than 0';
+  if (n > 1000000) return 'Price is too high';
+  return null;
+}
+
+export function validateQuoteMessage(value) {
+  const s = typeof value === 'string' ? value.trim() : '';
+  if (s && s.length > LIMITS.quoteMessage) return `Message must be ${LIMITS.quoteMessage} characters or fewer`;
   return null;
 }
 

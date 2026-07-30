@@ -15,9 +15,7 @@ const CAT_COLORS = {
 
 export default function JobCard({
   job,
-  onAccept,
   onDecline,
-  accepting,
   declining,
   isNew = false,
 }) {
@@ -59,17 +57,7 @@ export default function JobCard({
       )}
 
       <div className="job-card-actions">
-        <Link to={`/jobs/${job.id}`} className="btn btn-ghost btn-sm">View details</Link>
-        {onAccept && (
-          <button
-            type="button"
-            className="btn btn-accent btn-sm"
-            onClick={onAccept}
-            disabled={accepting || declining}
-          >
-            {accepting ? 'Accepting…' : 'Accept'}
-          </button>
-        )}
+        <Link to={`/jobs/${job.id}`} className="btn btn-accent btn-sm">View &amp; quote</Link>
         {onDecline && (
           <button
             type="button"
@@ -77,7 +65,7 @@ export default function JobCard({
             onClick={() => {
               if (window.confirm('Decline this job?')) onDecline();
             }}
-            disabled={accepting || declining}
+            disabled={declining}
           >
             {declining ? 'Declining…' : 'Decline'}
           </button>

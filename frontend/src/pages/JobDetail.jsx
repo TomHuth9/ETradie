@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { formatJobDate } from '../utils/format';
-import { validateMessageContent, validateReviewComment } from '../utils/validation';
+import { validateMessageContent, validateReviewComment, validateQuotePrice, validateQuoteMessage } from '../utils/validation';
 
 const CAT_COLORS = {
   PLUMBING:       { color: '#2563eb', bg: '#eff6ff' },
@@ -24,8 +24,16 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
-  const [responding, setResponding] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [quotePrice, setQuotePrice] = useState('');
+  const [quoteMessage, setQuoteMessage] = useState('');
+  const [quotePriceError, setQuotePriceError] = useState('');
+  const [quoteMessageError, setQuoteMessageError] = useState('');
+  const [submittingQuote, setSubmittingQuote] = useState(false);
+  const [declining, setDeclining] = useState(false);
+  const [quotes, setQuotes] = useState([]);
+  const [quotesLoading, setQuotesLoading] = useState(false);
+  const [acceptingQuoteId, setAcceptingQuoteId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messageInput, setMessageInput] = useState('');
@@ -68,6 +76,27 @@ export default function JobDetail() {
     (isHomeowner && job?.homeownerId === user?.id || acceptedTradesperson?.id === user?.id)
   );
   const isCompleted = job?.status === 'COMPLETED';
+  const canQuote = isTradesperson && job?.status === 'PENDING';
+  const canViewQuotes = isHomeowner && job?.status === 'PENDING';
+
+  useEffect(() => {
+    if (!job?.myResponse) return;
+    if (job.myResponse.response === 'QUOTED') {
+      setQuotePrice(String(job.myResponse.price ?? ''));
+      setQuoteMessage(job.myResponse.message ?? '');
+    }
+  }, [job?.myResponse]);
+
+  useEffect(() => {
+    if (!id || !canViewQuotes) return;
+    let cancelled = false;
+    setQuotesLoading(true);
+    api.get(`/jobs/${id}/quotes`)
+      .then(res => { if (!cancelled && Array.isArray(res.data)) setQuotes(res.data); })
+      .catch(() => { if (!cancelled) setQuotes([]); })
+      .finally(() => { if (!cancelled) setQuotesLoading(false); });
+    return () => { cancelled = true; };
+  }, [id, canViewQuotes]);
 
   useEffect(() => {
     if (!id || !canMessage) return;
@@ -111,17 +140,52 @@ export default function JobDetail() {
     return () => { cancelled = true; };
   }, [job?.homeowner?.id]);
 
-  async function handleRespond(response) {
-    if (!job || !isTradesperson) return;
-    setResponding(true);
+  async function handleSubmitQuote(e) {
+    e.preventDefault();
+    const priceErr = validateQuotePrice(quotePrice);
+    const messageErr = validateQuoteMessage(quoteMessage);
+    setQuotePriceError(priceErr || '');
+    setQuoteMessageError(messageErr || '');
+    if (priceErr || messageErr || submittingQuote) return;
+    setSubmittingQuote(true);
     setError('');
     try {
-      await api.post(`/jobs/${job.id}/respond`, { response });
+      await api.post(`/jobs/${job.id}/quote`, { price: Number(quotePrice), message: quoteMessage.trim() || undefined });
+      await loadJob();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to submit quote.');
+    } finally {
+      setSubmittingQuote(false);
+    }
+  }
+
+  async function handleDecline() {
+    if (!job || !isTradesperson) return;
+    if (!window.confirm('Decline this job?')) return;
+    setDeclining(true);
+    setError('');
+    try {
+      await api.post(`/jobs/${job.id}/decline`);
       navigate('/tradesperson-dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send response.');
+      setError(err.response?.data?.message || 'Failed to decline job.');
     } finally {
-      setResponding(false);
+      setDeclining(false);
+    }
+  }
+
+  async function handleAcceptQuote(responseId) {
+    if (!job || !isHomeowner) return;
+    if (!window.confirm('Accept this quote? The job will be assigned to this tradesperson.')) return;
+    setAcceptingQuoteId(responseId);
+    setError('');
+    try {
+      await api.post(`/jobs/${job.id}/quotes/${responseId}/accept`);
+      await loadJob();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to accept quote.');
+    } finally {
+      setAcceptingQuoteId(null);
     }
   }
 
@@ -185,7 +249,6 @@ export default function JobDetail() {
   );
   if (!job) return <div className="page-header"><p className="page-subtitle">Loading job…</p></div>;
 
-  const canRespond  = isTradesperson && job.status === 'PENDING';
   const canCancel   = isHomeowner && (job.status === 'PENDING' || job.status === 'ACCEPTED');
   const canClose    = isHomeowner && job.status === 'PENDING';
   const canComplete = (isHomeowner || (isTradesperson && acceptedTradesperson?.id === user?.id)) && job.status === 'ACCEPTED';
@@ -252,18 +315,6 @@ export default function JobDetail() {
           </div>
         )}
 
-        {canRespond && (
-          <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-            <button type="button" className="btn btn-accent" onClick={() => handleRespond('ACCEPTED')} disabled={responding}>
-              {responding ? 'Sending…' : 'Accept job'}
-            </button>
-            <button type="button" className="btn btn-danger" disabled={responding}
-              onClick={() => { if (window.confirm('Decline this job?')) handleRespond('DECLINED'); }}>
-              Decline
-            </button>
-          </div>
-        )}
-
         {(canCancel || canComplete || canClose) && (
           <div style={{ display: 'flex', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
             {canClose    && <button type="button" className="btn btn-ghost"  onClick={handleClose}    disabled={actionLoading}>{actionLoading ? 'Closing…'     : 'Close job'}</button>}
@@ -272,6 +323,90 @@ export default function JobDetail() {
           </div>
         )}
       </div>
+
+      {canQuote && (
+        <div className="card" style={{ marginBottom: '1.25rem' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '1.0625rem' }}>
+            {job.myResponse?.response === 'QUOTED' ? 'Update your quote' : 'Submit a quote'}
+          </h3>
+          {job.myResponse?.response === 'DECLINED' && (
+            <p style={{ margin: '0 0 14px', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
+              You declined this job. You can still submit a quote if you've changed your mind.
+            </p>
+          )}
+          <form onSubmit={handleSubmitQuote}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="quotePrice">Your price (£)</label>
+              <input
+                id="quotePrice"
+                type="number"
+                min="0.01"
+                step="0.01"
+                className={`form-input${quotePriceError ? ' form-input-error' : ''}`}
+                value={quotePrice}
+                onChange={e => { setQuotePrice(e.target.value); setQuotePriceError(''); }}
+                disabled={submittingQuote}
+              />
+              {quotePriceError && <span className="form-field-error">{quotePriceError}</span>}
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="quoteMessage">Message (optional)</label>
+              <textarea
+                id="quoteMessage"
+                rows={2}
+                className={`form-textarea${quoteMessageError ? ' form-input-error' : ''}`}
+                placeholder="e.g. availability, what's included…"
+                value={quoteMessage}
+                onChange={e => { setQuoteMessage(e.target.value); setQuoteMessageError(''); }}
+                disabled={submittingQuote}
+              />
+              {quoteMessageError && <span className="form-field-error">{quoteMessageError}</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="submit" className="btn btn-accent" disabled={submittingQuote}>
+                {submittingQuote ? 'Sending…' : job.myResponse?.response === 'QUOTED' ? 'Update quote' : 'Submit quote'}
+              </button>
+              <button type="button" className="btn btn-danger" disabled={declining} onClick={handleDecline}>
+                {declining ? 'Declining…' : 'Decline'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {canViewQuotes && (
+        <div className="card" style={{ marginBottom: '1.25rem' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: '1.0625rem' }}>Quotes</h3>
+          {quotesLoading ? <p className="page-subtitle">Loading quotes…</p> : quotes.length === 0 ? (
+            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>No quotes yet. Check back soon.</p>
+          ) : (
+            <div>
+              {quotes.filter(q => q.response === 'QUOTED').map(q => (
+                <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, padding: '14px 0', borderBottom: '1px solid var(--color-border)' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9375rem' }}>
+                      <Link to={`/profile/${q.tradesperson.id}`} style={{ color: 'inherit' }}>{q.tradesperson.name}</Link>
+                    </div>
+                    {q.tradesperson.averageRating != null && (
+                      <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                        ⭐ {q.tradesperson.averageRating} · {q.tradesperson.reviewCount} review{q.tradesperson.reviewCount === 1 ? '' : 's'}
+                      </div>
+                    )}
+                    {q.message && <p style={{ margin: '6px 0 0', fontSize: '0.875rem', lineHeight: 1.5 }}>{q.message}</p>}
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '1.0625rem', marginBottom: 8 }}>£{Number(q.price).toFixed(2)}</div>
+                    <button type="button" className="btn btn-accent" disabled={acceptingQuoteId != null}
+                      onClick={() => handleAcceptQuote(q.id)}>
+                      {acceptingQuoteId === q.id ? 'Accepting…' : 'Accept'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {canMessage && (
         <div className="card" style={{ marginBottom: '1.25rem' }}>

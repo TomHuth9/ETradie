@@ -15,6 +15,8 @@ export default function TradespersonDashboard() {
   const [historyJobs, setHistoryJobs] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [nearbyLoading, setNearbyLoading] = useState(true);
+  const [radiusKm, setRadiusKm] = useState(25);
+  const [debouncedRadiusKm, setDebouncedRadiusKm] = useState(25);
 
   const connectionLabel = !socket
     ? 'Connecting…'
@@ -47,21 +49,19 @@ export default function TradespersonDashboard() {
   }, []);
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedRadiusKm(radiusKm), 400);
+    return () => clearTimeout(t);
+  }, [radiusKm]);
+
+  useEffect(() => {
     let cancelled = false;
     setNearbyLoading(true);
-    api.get('/jobs/nearby')
-      .then(res => {
-        if (cancelled) return;
-        setJobs(prev => {
-          const byId = new Map(prev.map(j => [j.id, j]));
-          res.data.forEach(j => byId.set(j.id, j));
-          return [...byId.values()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        });
-      })
+    api.get('/jobs/nearby', { params: { radiusKm: debouncedRadiusKm } })
+      .then(res => { if (!cancelled) setJobs(res.data); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setNearbyLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [debouncedRadiusKm]);
 
   useEffect(() => {
     if (!socket) return;
@@ -72,17 +72,14 @@ export default function TradespersonDashboard() {
     return () => socket.off('job:new', handleNewJob);
   }, [socket]);
 
-  async function respond(jobId, response) {
+  async function decline(jobId) {
     setBusyJobId(jobId);
     setError('');
     try {
-      await api.post(`/jobs/${jobId}/respond`, { response });
+      await api.post(`/jobs/${jobId}/decline`);
       setJobs(prev => prev.filter(j => j.id !== jobId));
-      const res = await api.get('/jobs/my');
-      const d = res.data;
-      setHistoryJobs(Array.isArray(d.jobs) ? d.jobs : (Array.isArray(d) ? d : []));
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send response.');
+      setError(err.response?.data?.message || 'Failed to decline job.');
     } finally {
       setBusyJobId(null);
     }
@@ -120,14 +117,31 @@ export default function TradespersonDashboard() {
       <section className="section">
         <div className="section-header">
           <h3 className="section-title">New job requests</h3>
-          {categories.length > 0 && (
-            <select className="form-select" value={categoryFilter}
-              onChange={e => setCategoryFilter(e.target.value)}
-              style={{ width: 'auto', minWidth: 180 }}>
-              <option value="">All categories</option>
-              {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
-            </select>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label htmlFor="radiusSlider" style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                Radius: {radiusKm} km
+              </label>
+              <input
+                id="radiusSlider"
+                type="range"
+                min={5}
+                max={100}
+                step={5}
+                value={radiusKm}
+                onChange={e => setRadiusKm(Number(e.target.value))}
+                style={{ width: 140 }}
+              />
+            </div>
+            {categories.length > 0 && (
+              <select className="form-select" value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                style={{ width: 'auto', minWidth: 180 }}>
+                <option value="">All categories</option>
+                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.label}</option>)}
+              </select>
+            )}
+          </div>
         </div>
 
         {nearbyLoading && jobs.length === 0 && <p className="page-subtitle">Loading nearby jobs…</p>}
@@ -150,10 +164,8 @@ export default function TradespersonDashboard() {
               <JobCard
                 key={job.id}
                 job={{ ...job, categoryLabel: categoryMap[job.category] }}
-                accepting={busyJobId === job.id}
                 declining={busyJobId === job.id}
-                onAccept={() => respond(job.id, 'ACCEPTED')}
-                onDecline={() => respond(job.id, 'DECLINED')}
+                onDecline={() => decline(job.id)}
                 isNew
               />
             ))}
