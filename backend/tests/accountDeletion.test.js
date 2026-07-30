@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const prisma = require('../src/prismaClient');
 const { registerAndVerify } = require('./helpers/registerAndVerify');
+const { quoteAndAccept } = require('./helpers/quoteAndAccept');
 
 describe('E2E: self-service account deletion', () => {
   const password = 'Password123';
@@ -96,11 +97,8 @@ describe('E2E: self-service account deletion', () => {
     const tsToken = tsVerify.body.token;
     const tsId = tsVerify.body.user.id;
 
-    const respondRes = await request(app)
-      .post(`/jobs/${jobId}/respond`)
-      .set('Authorization', `Bearer ${tsToken}`)
-      .send({ response: 'ACCEPTED' });
-    expect(respondRes.status).toBe(200);
+    const { acceptRes } = await quoteAndAccept({ jobId, tradespersonToken: tsToken, homeownerToken: hwToken, price: 150 });
+    expect(acceptRes.status).toBe(200);
 
     // This used to throw a P2003 foreign key violation before the shared
     // deleteUserAndAllData helper existed.
@@ -178,10 +176,7 @@ describe('E2E: admin delete-user uses the same cascade cleanup', () => {
     const tsToken = tsVerify.body.token;
     const tsId = tsVerify.body.user.id;
 
-    await request(app)
-      .post(`/jobs/${jobId}/respond`)
-      .set('Authorization', `Bearer ${tsToken}`)
-      .send({ response: 'ACCEPTED' });
+    await quoteAndAccept({ jobId, tradespersonToken: tsToken, homeownerToken: hwToken, price: 150 });
 
     const { verifyRes: adminVerify } = await registerAndVerify({
       name: 'Admin User', email: adminEmail, password, role: 'homeowner',

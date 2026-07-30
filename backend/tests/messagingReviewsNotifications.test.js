@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const prisma = require('../src/prismaClient');
 const { registerAndVerify } = require('./helpers/registerAndVerify');
+const { quoteAndAccept } = require('./helpers/quoteAndAccept');
 
 describe('E2E: messaging, reviews, notifications, and public profile', () => {
   const password = 'Password123';
@@ -44,10 +45,7 @@ describe('E2E: messaging, reviews, notifications, and public profile', () => {
       .send({ title: 'Accepted job', description: 'Will be accepted then completed.', category: 'PLUMBING', locationText: '10 High Street, Glasgow' });
     acceptedJobId = acceptedJob.body.id;
 
-    await request(app)
-      .post(`/jobs/${acceptedJobId}/respond`)
-      .set('Authorization', `Bearer ${tradespersonToken}`)
-      .send({ response: 'ACCEPTED' });
+    await quoteAndAccept({ jobId: acceptedJobId, tradespersonToken, homeownerToken, price: 150 });
   });
 
   describe('messaging', () => {

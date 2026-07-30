@@ -5,6 +5,7 @@ const app = require('../src/app');
 const initSockets = require('../src/sockets');
 const prisma = require('../src/prismaClient');
 const { registerAndVerify } = require('./helpers/registerAndVerify');
+const { quoteAndAccept } = require('./helpers/quoteAndAccept');
 
 let server;
 let io;
@@ -207,10 +208,7 @@ describe('Socket.IO', () => {
         .send({ title: 'Job for messaging', description: 'Test.', category: 'PLUMBING', locationText: '10 High Street, Glasgow' });
       const jobId = jobRes.body.id;
 
-      await request(app)
-        .post(`/jobs/${jobId}/respond`)
-        .set('Authorization', `Bearer ${trade.token}`)
-        .send({ response: 'ACCEPTED' });
+      await quoteAndAccept({ jobId, tradespersonToken: trade.token, homeownerToken: homeowner.token, price: 150 });
 
       const homeownerSocket = connectClient(homeowner.token);
       await waitForConnectionOutcome(homeownerSocket);
@@ -234,7 +232,7 @@ describe('Socket.IO', () => {
   });
 
   describe('live notification push (notification:new)', () => {
-    test('a job acceptance pushes notification:new to the homeowner\'s socket', async () => {
+    test('accepting a quote pushes notification:new to the winning tradesperson\'s socket', async () => {
       const homeowner = await registerVerifiedUser({});
       const trade = await registerVerifiedUser({ role: 'tradesperson', townOrCity: 'Glasgow', addressLine1: undefined, addressCity: undefined, addressPostcode: undefined });
 
@@ -244,23 +242,32 @@ describe('Socket.IO', () => {
         .send({ title: 'Job for notification', description: 'Test.', category: 'PLUMBING', locationText: '10 High Street, Glasgow' });
       const jobId = jobRes.body.id;
 
-      const homeownerSocket = connectClient(homeowner.token);
-      await waitForConnectionOutcome(homeownerSocket);
+      await request(app)
+        .post(`/jobs/${jobId}/quote`)
+        .set('Authorization', `Bearer ${trade.token}`)
+        .send({ price: 150 });
 
-      const notificationPromise = new Promise((resolve) => homeownerSocket.once('notification:new', resolve));
+      const tradeSocket = connectClient(trade.token);
+      await waitForConnectionOutcome(tradeSocket);
+
+      const notificationPromise = new Promise((resolve) => tradeSocket.once('notification:new', resolve));
+
+      const quotesRes = await request(app)
+        .get(`/jobs/${jobId}/quotes`)
+        .set('Authorization', `Bearer ${homeowner.token}`);
+      const responseId = quotesRes.body[0].id;
 
       await request(app)
-        .post(`/jobs/${jobId}/respond`)
-        .set('Authorization', `Bearer ${trade.token}`)
-        .send({ response: 'ACCEPTED' });
+        .post(`/jobs/${jobId}/quotes/${responseId}/accept`)
+        .set('Authorization', `Bearer ${homeowner.token}`);
 
       const received = await Promise.race([
         notificationPromise,
         new Promise((_, reject) => setTimeout(() => reject(new Error('notification:new not received in time')), 3000)),
       ]);
 
-      expect(received.type).toBe('job_accepted');
-      homeownerSocket.close();
+      expect(received.type).toBe('quote_accepted');
+      tradeSocket.close();
     });
   });
 });
