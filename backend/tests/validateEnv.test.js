@@ -76,4 +76,29 @@ describe('validateEnv', () => {
     expect(errorSpy).not.toHaveBeenCalled();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('SENDGRID_API_KEY'));
   });
+
+  test('warns when SENDGRID_API_KEY is present but does not look like a real key', () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test';
+    process.env.JWT_SECRET = 'secret';
+    process.env.SENDGRID_API_KEY = 'some-revoked-or-mistyped-value';
+    process.env.FROM_EMAIL = 'noreply@example.com';
+    process.env.CLIENT_URL = 'https://example.com';
+
+    validateEnv();
+
+    expect(exitSpy).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('SENDGRID_API_KEY does not look like a valid SendGrid key'));
+  });
+
+  test('does not warn about key shape when SENDGRID_API_KEY starts with "SG."', () => {
+    process.env.DATABASE_URL = 'postgresql://localhost/test';
+    process.env.JWT_SECRET = 'secret';
+    process.env.SENDGRID_API_KEY = 'SG.realkey';
+    process.env.FROM_EMAIL = 'noreply@example.com';
+    process.env.CLIENT_URL = 'https://example.com';
+
+    validateEnv();
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
 });
