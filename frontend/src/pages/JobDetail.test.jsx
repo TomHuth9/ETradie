@@ -154,7 +154,10 @@ describe('JobDetail page', () => {
     });
     renderJobDetail();
 
-    await waitFor(() => expect(screen.getByText(/reviews/i)).toBeInTheDocument());
+    // The accepted-tradesperson strip also renders "· 2 reviews" as plain
+    // text, so target the section heading specifically rather than any text
+    // containing "review".
+    await waitFor(() => expect(screen.getByRole('heading', { name: /^reviews$/i })).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /submit review/i })).not.toBeInTheDocument();
   });
 });
