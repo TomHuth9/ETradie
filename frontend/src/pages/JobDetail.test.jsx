@@ -24,7 +24,7 @@ const categories = [{ id: 'PLUMBING', label: 'Plumbing' }];
 const pendingJob = {
   id: 5, title: 'Fix leaking tap', description: 'Kitchen tap drips.', category: 'PLUMBING',
   locationText: '10 High Street, Glasgow', status: 'PENDING', createdAt: '2026-01-01T00:00:00Z',
-  homeownerId: 1, homeowner: { id: 1, name: 'Grace Homeowner' },
+  homeownerId: 1, homeowner: { id: 1, name: 'Grace Homeowner' }, myResponse: null,
 };
 
 const acceptedJob = {
@@ -34,12 +34,13 @@ const acceptedJob = {
 
 const completedJob = { ...acceptedJob, status: 'COMPLETED' };
 
-function mockApi({ job, messages = [], reviews = [] }) {
+function mockApi({ job, messages = [], reviews = [], quotes = [] }) {
   mockGet.mockImplementation((url) => {
     if (url === `/jobs/${job.id}`) return Promise.resolve({ data: job });
     if (url === '/trades/categories') return Promise.resolve({ data: categories });
     if (url === `/jobs/${job.id}/messages`) return Promise.resolve({ data: messages });
     if (url === `/jobs/${job.id}/reviews`) return Promise.resolve({ data: reviews });
+    if (url === `/jobs/${job.id}/quotes`) return Promise.resolve({ data: quotes });
     if (url.match(/\/users\/\d+\/rating/)) return Promise.resolve({ data: { averageRating: null, reviewCount: 0 } });
     return Promise.reject(new Error(`Unexpected URL: ${url}`));
   });
@@ -82,19 +83,73 @@ describe('JobDetail page', () => {
     expect(screen.getByText('PENDING')).toBeInTheDocument();
   });
 
-  test('a tradesperson can accept a pending job, which navigates to their dashboard', async () => {
+  test('a tradesperson can submit a quote on a pending job', async () => {
     mockAuth = { user: { id: 2, role: 'TRADESPERSON' }, socket: null };
     mockApi({ job: pendingJob });
     mockPost.mockResolvedValue({ data: {} });
     renderJobDetail();
 
     await waitFor(() => expect(screen.getByText('Fix leaking tap')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /accept job/i }));
+    fireEvent.change(screen.getByLabelText(/your price/i), { target: { value: '150' } });
+    fireEvent.click(screen.getByRole('button', { name: /submit quote/i }));
 
-    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/jobs/5/respond', { response: 'ACCEPTED' }));
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/jobs/5/quote', { price: 150, message: undefined }));
+  });
+
+  test('rejects an empty price when submitting a quote', async () => {
+    mockAuth = { user: { id: 2, role: 'TRADESPERSON' }, socket: null };
+    mockApi({ job: pendingJob });
+    renderJobDetail();
+
+    await waitFor(() => expect(screen.getByText('Fix leaking tap')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /submit quote/i }));
+
+    expect(await screen.findByText(/enter a price/i)).toBeInTheDocument();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  test('a tradesperson can decline a pending job, which navigates to their dashboard', async () => {
+    mockAuth = { user: { id: 2, role: 'TRADESPERSON' }, socket: null };
+    mockApi({ job: pendingJob });
+    mockPost.mockResolvedValue({ data: {} });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderJobDetail();
+
+    await waitFor(() => expect(screen.getByText('Fix leaking tap')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^decline$/i }));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/jobs/5/decline'));
     await waitFor(() => {
       expect(screen.getByText(/tradesperson dashboard page/i)).toBeInTheDocument();
     });
+    confirmSpy.mockRestore();
+  });
+
+  test('pre-fills the quote form when the tradesperson already quoted', async () => {
+    mockAuth = { user: { id: 2, role: 'TRADESPERSON' }, socket: null };
+    mockApi({ job: { ...pendingJob, myResponse: { response: 'QUOTED', price: 200, message: 'Can start Monday' } } });
+    renderJobDetail();
+
+    await waitFor(() => expect(screen.getByText(/update your quote/i)).toBeInTheDocument());
+    expect(screen.getByLabelText(/your price/i)).toHaveValue(200);
+    expect(screen.getByLabelText(/message/i)).toHaveValue('Can start Monday');
+  });
+
+  test('a homeowner sees a list of quotes and can accept one', async () => {
+    mockApi({
+      job: pendingJob,
+      quotes: [{ id: 99, response: 'QUOTED', price: 150, message: 'Available Tuesday', tradesperson: { id: 2, name: 'Tom Tradesperson', averageRating: 4.5, reviewCount: 2 } }],
+    });
+    mockPost.mockResolvedValue({ data: {} });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    renderJobDetail();
+
+    await waitFor(() => expect(screen.getByText('Tom Tradesperson')).toBeInTheDocument());
+    expect(screen.getByText('£150.00')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^accept$/i }));
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/jobs/5/quotes/99/accept'));
+    confirmSpy.mockRestore();
   });
 
   test('a homeowner sees cancel and close actions on a pending job', async () => {
@@ -104,7 +159,6 @@ describe('JobDetail page', () => {
     await waitFor(() => expect(screen.getByText('Fix leaking tap')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /cancel job/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /close job/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /accept job/i })).not.toBeInTheDocument();
   });
 
   test('shows the accepted tradesperson and allows messaging once a job is accepted', async () => {

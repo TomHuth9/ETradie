@@ -60,13 +60,14 @@ describe('TradespersonDashboard page', () => {
     expect(screen.getByText(/live - receiving job requests/i)).toBeInTheDocument();
   });
 
-  test('loads and displays nearby jobs', async () => {
+  test('loads and displays nearby jobs, requesting the default 25km radius', async () => {
     mockApi({ nearby: [nearbyJob] });
     render(<MemoryRouter><TradespersonDashboard /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('Fix leaking tap')).toBeInTheDocument();
     });
+    expect(mockGet).toHaveBeenCalledWith('/jobs/nearby', { params: { radiusKm: 25 } });
   });
 
   test('shows an empty state when there are no nearby jobs', async () => {
@@ -78,31 +79,59 @@ describe('TradespersonDashboard page', () => {
     });
   });
 
-  test('accepting a job posts the response and removes it from the nearby list', async () => {
+  test('dragging the radius slider re-fetches nearby jobs with the new radius', async () => {
     mockApi({ nearby: [nearbyJob] });
-    mockPost.mockResolvedValue({ data: {} });
     render(<MemoryRouter><TradespersonDashboard /></MemoryRouter>);
 
     await waitFor(() => expect(screen.getByText('Fix leaking tap')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /^accept$/i }));
+    mockGet.mockClear();
 
-    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/jobs/10/respond', { response: 'ACCEPTED' }));
+    fireEvent.change(screen.getByLabelText(/radius/i), { target: { value: '50' } });
+    expect(screen.getByText(/radius: 50 km/i)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockGet).toHaveBeenCalledWith('/jobs/nearby', { params: { radiusKm: 50 } });
+    }, { timeout: 2000 });
+  });
+
+  test('links each job card to its detail page for quoting instead of one-click accept', async () => {
+    mockApi({ nearby: [nearbyJob] });
+    render(<MemoryRouter><TradespersonDashboard /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText('Fix leaking tap')).toBeInTheDocument());
+    expect(screen.getByRole('link', { name: /view & quote/i })).toHaveAttribute('href', '/jobs/10');
+    expect(screen.queryByRole('button', { name: /^accept$/i })).not.toBeInTheDocument();
+  });
+
+  test('declining a job posts the decline and removes it from the nearby list', async () => {
+    mockApi({ nearby: [nearbyJob] });
+    mockPost.mockResolvedValue({ data: {} });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<MemoryRouter><TradespersonDashboard /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText('Fix leaking tap')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /decline/i }));
+
+    await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/jobs/10/decline'));
     await waitFor(() => {
       expect(screen.queryByText('Fix leaking tap')).not.toBeInTheDocument();
     });
+    confirmSpy.mockRestore();
   });
 
-  test('shows an error message when responding to a job fails', async () => {
+  test('shows an error message when declining a job fails', async () => {
     mockApi({ nearby: [nearbyJob] });
     mockPost.mockRejectedValue({ response: { data: { message: 'Job is no longer available' } } });
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<MemoryRouter><TradespersonDashboard /></MemoryRouter>);
 
     await waitFor(() => expect(screen.getByText('Fix leaking tap')).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /^accept$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /decline/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/job is no longer available/i)).toBeInTheDocument();
     });
+    confirmSpy.mockRestore();
   });
 
   test('displays recent job history', async () => {

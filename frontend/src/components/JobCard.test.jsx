@@ -46,30 +46,20 @@ describe('JobCard', () => {
     expect(screen.queryByText(/^new$/i)).not.toBeInTheDocument();
   });
 
-  test('links "View details" to the job page', () => {
+  test('links "View & quote" to the job page', () => {
     renderCard();
-    expect(screen.getByRole('link', { name: /view details/i })).toHaveAttribute('href', '/jobs/42');
+    expect(screen.getByRole('link', { name: /view & quote/i })).toHaveAttribute('href', '/jobs/42');
   });
 
-  test('does not render Accept/Decline buttons unless the handlers are provided', () => {
+  test('does not render a Decline button unless onDecline is provided', () => {
     renderCard();
-    expect(screen.queryByRole('button', { name: /accept/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /decline/i })).not.toBeInTheDocument();
   });
 
-  test('clicking Accept calls onAccept', () => {
-    const onAccept = vi.fn();
-    renderCard({ onAccept });
-    fireEvent.click(screen.getByRole('button', { name: /^accept$/i }));
-    expect(onAccept).toHaveBeenCalledTimes(1);
-  });
-
-  test('shows "Accepting…" and disables both buttons while accepting', () => {
-    const onAccept = vi.fn();
+  test('shows "Declining…" and disables the Decline button while declining', () => {
     const onDecline = vi.fn();
-    renderCard({ onAccept, onDecline, accepting: true });
-    expect(screen.getByRole('button', { name: /accepting/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /decline/i })).toBeDisabled();
+    renderCard({ onDecline, declining: true });
+    expect(screen.getByRole('button', { name: /declining/i })).toBeDisabled();
   });
 
   test('Decline asks for confirmation and only calls onDecline if confirmed', () => {
