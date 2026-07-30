@@ -146,18 +146,20 @@ async function getJobById(req, res, next) {
         return res.status(403).json({ message: 'Not authorised' });
       }
     } else if (req.user.role === 'TRADESPERSON') {
+      const myResponse = await prisma.jobResponse.findUnique({
+        where: {
+          jobId_tradespersonId: { jobId: id, tradespersonId: req.user.id },
+        },
+      });
+
       // Allow access to PENDING jobs (they appear in the nearby feed) and to
       // any job this tradesperson has already responded to.
-      if (job.status !== 'PENDING') {
-        const response = await prisma.jobResponse.findUnique({
-          where: {
-            jobId_tradespersonId: { jobId: id, tradespersonId: req.user.id },
-          },
-        });
-        if (!response) {
-          return res.status(403).json({ message: 'Not authorised' });
-        }
+      if (job.status !== 'PENDING' && !myResponse) {
+        return res.status(403).json({ message: 'Not authorised' });
       }
+
+      // Let the frontend show "you already quoted £X" without a second call.
+      job.myResponse = myResponse;
     }
 
     const acceptedTradespersonId = job.responses?.[0]?.tradesperson?.id;
@@ -181,70 +183,192 @@ async function getJobById(req, res, next) {
   }
 }
 
-// POST /jobs/:id/respond
-// Tradesperson accepts or declines a job.
-async function respondToJob(req, res, next) {
+// POST /jobs/:id/quote
+// Tradesperson submits (or updates) a price quote for a pending job. The job
+// stays PENDING and open to further quotes — the homeowner decides who gets
+// it via acceptQuote below, rather than a first-to-respond race.
+async function submitQuote(req, res, next) {
   try {
     if (req.user.role !== 'TRADESPERSON') {
-      return res
-        .status(403)
-        .json({ message: 'Only tradespeople can respond to jobs' });
+      return res.status(403).json({ message: 'Only tradespeople can submit quotes' });
     }
 
     const id = Number(req.params.id);
-    const { response } = req.body;
-    const r = typeof response === 'string' ? response.toUpperCase() : '';
-
-    if (r !== 'ACCEPTED' && r !== 'DECLINED') {
-      return res
-        .status(400)
-        .json({ message: 'response must be ACCEPTED or DECLINED' });
-    }
+    const { price, message } = req.body;
 
     const job = await prisma.job.findUnique({ where: { id } });
     if (!job) {
       return res.status(404).json({ message: 'Job not found' });
     }
-
-    // DECLINED: record the response with no job status change needed.
-    if (r === 'DECLINED') {
-      const jobResponse = await prisma.jobResponse.upsert({
-        where: { jobId_tradespersonId: { jobId: id, tradespersonId: req.user.id } },
-        update: { response: 'DECLINED' },
-        create: { jobId: id, tradespersonId: req.user.id, response: 'DECLINED' },
-      });
-      return res.json(jobResponse);
+    if (job.status !== 'PENDING') {
+      return res.status(400).json({ message: 'This job is no longer accepting quotes' });
     }
 
-    // ACCEPTED: atomically transition PENDING → ACCEPTED in a single UPDATE statement.
-    // Using updateMany with a WHERE status = 'PENDING' condition means only one
-    // concurrent request can ever match — the database enforces this without a
-    // separate read, eliminating the TOCTOU race condition.
-    const updated = await prisma.job.updateMany({
-      where: { id, status: 'PENDING' },
-      data: { status: 'ACCEPTED' },
-    });
-
-    if (updated.count === 0) {
-      // Either another tradesperson won the race or the job is not in a PENDING state.
-      return res.status(409).json({ message: 'Job is no longer available' });
-    }
-
-    // We won the race — record the acceptance and notify the homeowner.
     const jobResponse = await prisma.jobResponse.upsert({
       where: { jobId_tradespersonId: { jobId: id, tradespersonId: req.user.id } },
-      update: { response: 'ACCEPTED' },
-      create: { jobId: id, tradespersonId: req.user.id, response: 'ACCEPTED' },
+      update: { response: 'QUOTED', price, message: message || null, respondedAt: new Date() },
+      create: { jobId: id, tradespersonId: req.user.id, response: 'QUOTED', price, message: message || null },
     });
 
     await createNotification(req, {
       userId: job.homeownerId,
-      type: 'job_accepted',
-      message: `Your job \"${job.title}\" was accepted`,
+      type: 'quote_received',
+      message: `New quote on \"${job.title}\"`,
       link: `/jobs/${id}`,
     });
 
-    return res.json(jobResponse);
+    res.json(jobResponse);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /jobs/:id/decline
+// Tradesperson declines to quote on a job.
+async function declineJob(req, res, next) {
+  try {
+    if (req.user.role !== 'TRADESPERSON') {
+      return res.status(403).json({ message: 'Only tradespeople can decline jobs' });
+    }
+
+    const id = Number(req.params.id);
+    const job = await prisma.job.findUnique({ where: { id } });
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+
+    const jobResponse = await prisma.jobResponse.upsert({
+      where: { jobId_tradespersonId: { jobId: id, tradespersonId: req.user.id } },
+      update: { response: 'DECLINED' },
+      create: { jobId: id, tradespersonId: req.user.id, response: 'DECLINED' },
+    });
+
+    res.json(jobResponse);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// GET /jobs/:id/quotes — homeowner reviews every response (quoted, declined,
+// etc.) on their own job, with each tradesperson's rating attached.
+async function listQuotesForJob(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    const job = await prisma.job.findUnique({ where: { id }, select: { id: true, homeownerId: true } });
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+    if (req.user.role !== 'HOMEOWNER' || job.homeownerId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorised' });
+    }
+
+    const responses = await prisma.jobResponse.findMany({
+      where: { jobId: id },
+      orderBy: { respondedAt: 'asc' },
+      include: { tradesperson: { select: { id: true, name: true } } },
+    });
+
+    // One grouped aggregate for every tradesperson on this job, rather than
+    // one query per row — avoids an N+1 as the number of quotes grows.
+    const tradespersonIds = responses.map((r) => r.tradespersonId);
+    const ratings = tradespersonIds.length
+      ? await prisma.review.groupBy({
+          by: ['revieweeId'],
+          where: { revieweeId: { in: tradespersonIds } },
+          _avg: { rating: true },
+          _count: { rating: true },
+        })
+      : [];
+    const ratingByUserId = new Map(ratings.map((r) => [r.revieweeId, r]));
+
+    const payload = responses.map((r) => {
+      const rating = ratingByUserId.get(r.tradespersonId);
+      return {
+        id: r.id,
+        response: r.response,
+        price: r.price,
+        message: r.message,
+        respondedAt: r.respondedAt,
+        tradesperson: {
+          id: r.tradesperson.id,
+          name: r.tradesperson.name,
+          averageRating: rating?._avg.rating != null ? Math.round(rating._avg.rating * 10) / 10 : null,
+          reviewCount: rating?._count.rating ?? 0,
+        },
+      };
+    });
+
+    res.json(payload);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /jobs/:id/quotes/:responseId/accept — homeowner picks a quote.
+async function acceptQuote(req, res, next) {
+  try {
+    if (req.user.role !== 'HOMEOWNER') {
+      return res.status(403).json({ message: 'Only homeowners can accept a quote' });
+    }
+
+    const id = Number(req.params.id);
+    const responseId = Number(req.params.responseId);
+
+    const job = await prisma.job.findUnique({ where: { id } });
+    if (!job) {
+      return res.status(404).json({ message: 'Job not found' });
+    }
+    if (job.homeownerId !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorised' });
+    }
+
+    const chosen = await prisma.jobResponse.findUnique({ where: { id: responseId } });
+    if (!chosen || chosen.jobId !== id || chosen.response !== 'QUOTED') {
+      return res.status(400).json({ message: 'Quote not found or no longer available' });
+    }
+
+    // Atomically transition PENDING → ACCEPTED first. A WHERE status = 'PENDING'
+    // updateMany means only one concurrent accept can ever match — the
+    // database enforces this without a separate read (no TOCTOU race).
+    const updated = await prisma.job.updateMany({
+      where: { id, status: 'PENDING' },
+      data: { status: 'ACCEPTED' },
+    });
+    if (updated.count === 0) {
+      return res.status(409).json({ message: 'This job is no longer available' });
+    }
+
+    await prisma.$transaction([
+      prisma.jobResponse.update({ where: { id: responseId }, data: { response: 'ACCEPTED' } }),
+      prisma.jobResponse.updateMany({
+        where: { jobId: id, response: 'QUOTED', id: { not: responseId } },
+        data: { response: 'NOT_SELECTED' },
+      }),
+    ]);
+
+    await createNotification(req, {
+      userId: chosen.tradespersonId,
+      type: 'quote_accepted',
+      message: `Your quote on \"${job.title}\" was accepted`,
+      link: `/jobs/${id}`,
+    });
+
+    const notSelected = await prisma.jobResponse.findMany({
+      where: { jobId: id, response: 'NOT_SELECTED' },
+      select: { tradespersonId: true },
+    });
+    await Promise.all(
+      notSelected.map((r) =>
+        createNotification(req, {
+          userId: r.tradespersonId,
+          type: 'quote_not_selected',
+          message: `The homeowner chose another quote for \"${job.title}\"`,
+          link: `/jobs/${id}`,
+        })
+      )
+    );
+
+    res.json({ message: 'Quote accepted', status: 'ACCEPTED' });
   } catch (err) {
     next(err);
   }
@@ -258,6 +382,7 @@ async function getNearbyJobs(req, res, next) {
     }
 
     const categoryFilter = req.query.category; // optional: filter by trade category
+    const radiusKm = req.query.radiusKm ?? NEARBY_RADIUS_KM; // optional: tradesperson-adjustable search radius
 
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -289,7 +414,7 @@ async function getNearbyJobs(req, res, next) {
       if (myResponseJobIds.has(job.id)) return false;
       if (job.lat == null || job.lng == null) return false;
       const distance = haversineDistanceKm(user.lat, user.lng, job.lat, job.lng);
-      if (distance > NEARBY_RADIUS_KM) return false;
+      if (distance > radiusKm) return false;
       if (filterByCategory && !filterByCategory.includes(job.category)) return false;
       return true;
     });
@@ -460,7 +585,10 @@ async function closeJob(req, res, next) {
 module.exports = {
   createJob,
   getJobById,
-  respondToJob,
+  submitQuote,
+  declineJob,
+  listQuotesForJob,
+  acceptQuote,
   getMyJobs,
   getNearbyJobs,
   cancelJob,

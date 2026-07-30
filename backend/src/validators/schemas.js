@@ -168,9 +168,21 @@ exports.createJobSchema = z.object({
   }),
 });
 
-exports.respondToJobSchema = z.object({
+exports.submitQuoteSchema = z.object({
   params: z.object({ id: z.string().regex(/^\d+$/).transform(Number) }),
-  body: z.object({ response: z.enum(['ACCEPTED', 'DECLINED']) }),
+  body: z.object({
+    price: z.number({ invalid_type_error: 'Price must be a number' })
+      .positive('Price must be greater than 0')
+      .max(1000000, 'Price is too high'),
+    message: z.string().max(1000, 'Message is too long').trim().optional(),
+  }),
+});
+
+exports.acceptQuoteSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^\d+$/).transform(Number),
+    responseId: z.string().regex(/^\d+$/).transform(Number),
+  }),
 });
 
 exports.submitReviewSchema = z.object({
@@ -221,5 +233,11 @@ exports.getMyJobsSchema = z.object({
 exports.getNearbyJobsSchema = z.object({
   query: z.object({
     category: tradeCategoryEnum.optional(),
+    radiusKm: z
+      .string()
+      .regex(/^\d+(\.\d+)?$/, 'radiusKm must be a number')
+      .transform(Number)
+      .pipe(z.number().min(1, 'radiusKm must be at least 1').max(100, 'radiusKm must be 100 or less'))
+      .optional(),
   }),
 });

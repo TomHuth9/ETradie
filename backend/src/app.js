@@ -46,6 +46,7 @@ const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
   message: { message: 'Too many requests; try again later.' },
+  skip: () => process.env.NODE_ENV === 'test',
 });
 // Strict limiter only on credential-submission endpoints; /auth/me and profile management routes use the general limiter so repeated page loads don't 429.
 app.use('/auth/login', authLimiter);

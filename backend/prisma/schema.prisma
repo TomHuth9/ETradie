@@ -45,8 +45,10 @@ enum JobStatus {
 }
 
 enum JobResponseStatus {
-  ACCEPTED
-  DECLINED
+  QUOTED // tradesperson submitted a price, awaiting the homeowner's decision
+  ACCEPTED // the homeowner chose this quote — this is the assigned tradesperson
+  DECLINED // the tradesperson declined to quote
+  NOT_SELECTED // the homeowner accepted a different quote on this job
 }
 
 model User {
@@ -139,6 +141,11 @@ model JobResponse {
 
   response    JobResponseStatus
   respondedAt DateTime          @default(now())
+
+  // Only set when response is QUOTED (or was QUOTED before being accepted/
+  // not-selected) — the tradesperson's price and optional note.
+  price   Decimal? @db.Decimal(10, 2)
+  message String?
 
   @@unique([jobId, tradespersonId])
   @@index([tradespersonId])

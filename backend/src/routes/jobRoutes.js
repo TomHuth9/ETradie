@@ -5,7 +5,8 @@ const auth = require('../middleware/authMiddleware');
 const { validateRequest } = require('../middleware/validateRequest');
 const {
   createJobSchema,
-  respondToJobSchema,
+  submitQuoteSchema,
+  acceptQuoteSchema,
   submitReviewSchema,
   sendMessageSchema,
   idParamSchema,
@@ -15,7 +16,10 @@ const {
 const {
   createJob,
   getJobById,
-  respondToJob,
+  submitQuote,
+  declineJob,
+  listQuotesForJob,
+  acceptQuote,
   getMyJobs,
   getNearbyJobs,
   cancelJob,
@@ -33,10 +37,12 @@ router.post('/:id/messages', auth, validateRequest(sendMessageSchema), sendMessa
 router.get('/:id/reviews', auth, validateRequest(idParamSchema), listReviewsForJob);
 router.post('/:id/reviews', auth, validateRequest(submitReviewSchema), submitReview);
 router.get('/:id', auth, validateRequest(idParamSchema), getJobById);
-router.post('/:id/respond', auth, validateRequest(respondToJobSchema), respondToJob);
+router.get('/:id/quotes', auth, validateRequest(idParamSchema), listQuotesForJob);
+router.post('/:id/quote', auth, validateRequest(submitQuoteSchema), submitQuote);
+router.post('/:id/decline', auth, validateRequest(idParamSchema), declineJob);
+router.post('/:id/quotes/:responseId/accept', auth, validateRequest(acceptQuoteSchema), acceptQuote);
 router.post('/:id/cancel', auth, validateRequest(idParamSchema), cancelJob);
 router.post('/:id/close', auth, validateRequest(idParamSchema), closeJob);
 router.post('/:id/complete', auth, validateRequest(idParamSchema), completeJob);
 
 module.exports = router;
-
