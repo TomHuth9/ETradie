@@ -44,10 +44,19 @@ export default function TradespersonProfile() {
     return () => { cancelled = true; };
   }, [id, profile]);
 
+  const isOwnProfile = user?.id === Number(id);
+
+  // Navigation is a side effect, so it belongs in an effect, not directly in
+  // the render body — calling it during render triggers a React warning
+  // ("Cannot update a component while rendering a different component") and
+  // isn't guaranteed to keep working in future React versions.
+  useEffect(() => {
+    if (isOwnProfile) navigate('/profile', { replace: true });
+  }, [isOwnProfile, navigate]);
+
   if (!id) return null;
 
-  if (user?.id === Number(id)) {
-    navigate('/profile', { replace: true });
+  if (isOwnProfile) {
     return <div className="page-header"><p>Redirecting to your profile…</p></div>;
   }
 
