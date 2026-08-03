@@ -113,3 +113,5 @@ See [DEPLOY.md](./DEPLOY.md) for deploying the API, static frontend, and Postgre
 ---
 
 ## License
+
+MIT: see [LICENSE](LICENSE).
